@@ -1,156 +1,107 @@
-import { open, clear, putall, getall, getmetadata } from "./storage.js";
-import { traverse, inverse } from "./json.js";
-import { getremote, sendallremote } from "./fetch.js"
+import { load, save } from "./storage.js";
+import { iskeyedlist, same } from "./json.js";
+import { merge, keepours } from "./merge.js";
+import {
+    RemoteError, preconditionfailed, getremote, sendremote
+} from "./fetch.js";
 
-function getstate(dbname, storename){
-    return open(dbname, storename)
-        .then((db) => getall(db, storename))
-        .then((result) => {
-            result.db.close();
-            return result.items;
-        });
+// A resource is stored as { url, base, ours }: base is the server state at
+// the last sync, ours is the local copy with any offline edits. A sync
+// merges ours with the server's current state against base, writes the
+// difference back, and makes the result the new base.
+
+const attempts = 3;
+
+// --- reading and editing ----------------------------------------------------
+
+async function get(db, url, ondata) {
+    const doc = await load(db, url.href);
+    if (doc !== undefined) ondata(doc.ours);
+    const result = await sync(db, url);
+    ondata(result.data);
+    return result;
 }
 
-function putstate(dbname, storename, state){
-    return open(dbname, storename)
-        .then((db) => clear(db, storename))
-        .then((db) => putall(db, storename, state))
-        .then((db) => db.close());
+async function edit(db, url, data) {
+    const doc = await load(db, url.href);
+    if (doc === undefined) throw new Error(`get ${url.href} before editing it`);
+    await save(db, { ...doc, ours: data });
 }
 
-const localdbname = "local";
+// --- syncing ----------------------------------------------------------------
 
-function getlocal(url){
-    return getstate(localdbname, url.pathname + url.search)
-        .then((state) => {
-            if (!state || state.length == 0){
-                return getstate(url.hostname, url.pathname + url.search);
-            }
-
-            return state;
-        })
-        .then((state) => fromState(state));
-}
-
-async function get(url, ondata){
-    const localdata = await getlocal(url);
-    localdata && ondata && ondata(localdata);
-    
-    const remotedata = await getremote(url);
-    !localdata && remotedata && ondata && ondata(remotedata);
-    
-    return remotedata;
-}
-
-function stash(url, data){
-    return putstate(url.hostname, url.pathname + url.search, toState(data));
-}
-
-async function merge(url){
-    return putstate(localdbname, url.pathname + url.search, await getmergedstate(url));
-}
-
-async function getmergedstate(url){
-    const storename = url.pathname + url.search;
-
-    const localstate = await getstate(localdbname, storename);
-    const hoststate = await getstate(url.hostname, storename);
-    
-    let mergedstate = localstate.filter(item => item.version > 0);  // updated
-
-    // https://stackoverflow.com/questions/1885557/simplest-code-for-array-intersection-in-javascript
-    hoststate.filter(item => !mergedstate.some((m) => m.id == item.id)).forEach(item => mergedstate.push(item)); // added
-
-    localstate.filter(item => item.version == 0 && !mergedstate.some((m) => m.id == item.id)).forEach(item => { // deleted
-        item.deleted = 1;
-        mergedstate.push(item)
-    }); 
-    
-    return mergedstate;
-}
-
-async function put(method, url, data){
-    // TODO: update all affected stores 
-    return putstate(localdbname, url.pathname + url.search, await getupdatedstate(url, data));
-}
-
-async function getupdatedstate(url, data){
-    const storename = url.pathname;
-
-    const newstate = toState(data);
-    const localstate = await getstate(localdbname, storename);
-
-    let updatedstate = [];
-    // https://stackoverflow.com/questions/10179815/get-loop-counter-index-using-for-of-syntax-in-javascript
-    for (const [i, newitem] of newstate.entries()) {
-        let localitem = localstate[i];
-         if (!localitem || localitem.id != newitem.id){
-            localitem = localstate.find(item => item.id == newitem.id) ?? newitem; //updated or added
-        }
- 
-        if (localitem.value != newitem.value){
-            localitem.timestamp = new Date().toUTCString();
-            localitem.version++;
-            localitem.value = newitem.value;
-        }
-
-        updatedstate.push(localitem);
-     }
-
-    localstate.filter(item => !updatedstate.some((u) => u.id == item.id)).forEach((item) => { // deleted
-        item.timestamp = new Date().toUTCString();
-        item.version++;
-        item.deleted = 1;
-        updatedstate.push(item);
+function sync(db, url, resolve = keepours, attempt = 1) {
+    return synconce(db, url, resolve).catch((error) => {
+        if (!retryable(error, attempt)) throw error;
+        return sync(db, url, resolve, attempt + 1);
     });
-
-    return updatedstate;
 }
 
-async function diff(url){  
-    return open(localdbname)
-        .then((db) => getmetadata(db, true))
-        .then((metadata) => {
-            let diffs = [];
-            metadata.stores
-                .filter(store => store.hasChanged)
-                .forEach(store => {
-                    diffs.push({method: "PUT", url: store.storename, data: fromState(store.items)}); // TODO: handle all changes
-                });
-            
-            metadata.db.close();
-            
-            return diffs;
-        })
-        .then((diffs) => sendallremote(url, diffs));
-        // TODO: reset version to 0
+function retryable(error, attempt) {
+    return error instanceof RemoteError
+        && error.status === preconditionfailed
+        && attempt < attempts;
 }
 
-function toState(json){
-    let items = [];
-    
-    for(let [key, value, path, parent] of traverse(json)) {
+async function synconce(db, url, resolve) {
+    const remote = await getremote(url);
+    const doc = await load(db, url.href) ?? unedited(url, remote.data);
+    const result = merge(doc.base, doc.ours, remote.data, resolve);
+    const writes = requests(url, remote, result.value);
+    for (const request of writes) await sendremote(request);
+    const settled = writes.length > 0 ? await getremote(url) : remote;
+    await save(db, unedited(url, settled.data));
+    return { data: settled.data, conflicts: result.conflicts };
+}
 
-        if (value === null || typeof(value) !== "object"){
-            items.push({id: path.join('.'), value: value, timestamp: new Date().toUTCString(), version: 0, deleted: 0, added: 0})
-        }
+function unedited(url, data) {
+    return { url: url.href, base: data, ours: data };
+}
+
+// --- writing back -----------------------------------------------------------
+
+// A collection of entities is written entity by entity, the way REST
+// expects; anything else is replaced whole, guarded by its ETag.
+function requests(url, remote, merged) {
+    if (iskeyedlist(remote.data) && iskeyedlist(merged)) {
+        return entityrequests(url, remote.data, merged);
     }
-    
-    return items;
+    if (same(remote.data, merged)) return [];
+    return [{ method: "PUT", url: url, data: merged, etag: remote.etag }];
 }
 
-function fromState(items, excludedeleted = true){
-    if (items && items.length > 0) {
-        let obj = isNaN(items[0].id.split('.')[0]) ? {} : [];
-        
-        for (let item of items){
-            if (!excludedeleted || !item.deleted){
-                inverse(obj, item.id.split('.'), item.value);
-            }
-        }
-        
-        return obj;
-    }
+function entityrequests(url, theirs, merged) {
+    const before = byid(theirs);
+    const after = byid(merged);
+    const added = merged.filter((e) => !before.has(String(e.id)));
+    const changed = merged.filter((e) => modified(before, e));
+    const removed = theirs.filter((e) => !after.has(String(e.id)));
+    return [
+        ...added.map((e) => request("POST", collection(url), e)),
+        ...changed.map((e) => request("PUT", entity(url, e), e)),
+        ...removed.map((e) => request("DELETE", entity(url, e)))
+    ];
 }
 
-export { get, stash, merge, diff, put, toState, fromState }
+function request(method, url, data) {
+    return { method: method, url: url, data: data };
+}
+
+function byid(entities) {
+    return new Map(entities.map((e) => [String(e.id), e]));
+}
+
+function modified(before, e) {
+    return before.has(String(e.id)) && !same(before.get(String(e.id)), e);
+}
+
+function collection(url) {
+    return new URL(url.pathname, url.origin);
+}
+
+function entity(url, e) {
+    const base = url.pathname.replace(/\/$/, "");
+    return new URL(`${base}/${encodeURIComponent(e.id)}`, url.origin);
+}
+
+export { get, edit, sync };

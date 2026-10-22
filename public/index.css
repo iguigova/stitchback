@@ -1,31 +1,57 @@
 :root {
-    --xs-padding: 0.125em;
-    --padding: 0.25em;
-    --xl-padding: 0.5em;
-    --xxl-padding: 1em;
-
-    --border: 0.0625em;
-
-    --font: 16px; /*https://stackoverflow.com/questions/2989263/disable-auto-zoom-in-input-text-tag-safari-on-iphone*/
-    --xl-font: 2em;
-    
-    --xs-thumbnail: 4.625em;
-    --thumbnail: 11em;
+    color-scheme: light dark;
+    --gap: 0.5rem;
+    --focus: #1a5fd0;
+    --invalid: #c62828;
 }
 
-* {
-    box-sizing: border-box; /*https://www.w3schools.com/css/css3_box-sizing.asp */
-    font-family: monospace;
+body {
+    font-family: system-ui, sans-serif;
+    font-size: 1rem;
+    line-height: 1.5;
+    margin: 0;
+}
+
+main {
+    max-width: 48rem;
+    margin: 0 auto;
+    padding: 1rem;
+}
+
+label {
     display: block;
-    margin-top: var(--xl-padding);
+    font-weight: 600;
+    margin-top: 1rem;
 }
 
 input, textarea {
-    font-size: var(--font);
-    padding: var(--padding);
+    box-sizing: border-box;
+    font: 1rem/1.4 ui-monospace, monospace;
+    padding: var(--gap);
     width: 100%;
 }
 
-#body {
-    height: 320px;
+textarea {
+    min-height: 20rem;
+}
+
+textarea[aria-invalid="true"] {
+    outline: 2px solid var(--invalid);
+}
+
+button {
+    font: inherit;
+    margin-top: var(--gap);
+    padding: var(--gap) 1rem;
+}
+
+.actions {
+    display: flex;
+    gap: var(--gap);
+    flex-wrap: wrap;
+}
+
+:focus-visible {
+    outline: 3px solid var(--focus);
+    outline-offset: 2px;
 }

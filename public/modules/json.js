@@ -1,56 +1,114 @@
-// summary: flatten obj by enumerating properties' path and value
-// https://stackoverflow.com/questions/722668/traverse-all-the-nodes-of-a-json-object-tree-with-javascript
-function* traverse(obj, path = []) {
-    for (var key of Object.keys(obj)) {
+// A document is flattened into records keyed by JSON Pointer. Each record
+// is one node: an object, a list of entities, or a value. A list whose
+// elements all carry a unique id is keyed by that id instead of by
+// position, so an insert never renames its neighbours. Any other array is
+// one atomic value.
 
-        const itemPath = path.concat(key);
+// --- pointers ---------------------------------------------------------------
 
-        yield [key, obj[key], itemPath, obj];
-        
-        if (obj[key] !== null && typeof(obj[key]) == "object") {
-            //going one step down in the object tree!!
-            yield* traverse(obj[key], itemPath);
-        }
-    }
+function escape(segment) {
+    return String(segment).replaceAll("~", "~0").replaceAll("/", "~1");
 }
 
-// summary: add value to obj at given path
-function inverse(obj, path, value, index = 0){
-    let child = next(path, value, index);
-
-    if (child){
-        // https://stackoverflow.com/questions/33066787/access-a-nested-property-with-a-string
-        let parent = path.slice(0, Math.min(index, path.length - 1)).reduce(function(p, prop) { return p[prop] }, obj);
-        let key = path[index];
-    
-        if (isNaN(key)) // property
-        {
-            parent[key] = parent[key] ?? child;
-        }
-        else if (parent.length - 1 < key) // index
-        {
-            parent.push(child);
-        }
-
-        inverse(obj, path, value, index + 1);
-    }
+function unescape(segment) {
+    return segment.replaceAll("~1", "/").replaceAll("~0", "~");
 }
 
-// summary: build node at index for given path
-function next(path, value, index){
-    let node;
-    
-    if (index < path.length - 1)
-    {
-        node = isNaN(path[index + 1]) ? {} : [];
-    }
-    else if (index == path.length - 1) // leaf
-    {
-        node = value;
-    }
-
-    return node;
+function child(pointer, segment) {
+    return `${pointer}/${escape(segment)}`;
 }
 
+function parentof(pointer) {
+    return pointer.slice(0, pointer.lastIndexOf("/"));
+}
 
-export { traverse, inverse } 
+function keyof(pointer) {
+    return unescape(pointer.slice(pointer.lastIndexOf("/") + 1));
+}
+
+// --- shapes -----------------------------------------------------------------
+
+function isobject(value) {
+    return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function isentity(value) {
+    return isobject(value) && ["string", "number"].includes(typeof value.id);
+}
+
+function iskeyedlist(value) {
+    return Array.isArray(value)
+        && value.every(isentity)
+        && new Set(value.map((e) => String(e.id))).size === value.length;
+}
+
+function idof(entity) {
+    return entity.id;
+}
+
+function nodeof(value) {
+    if (iskeyedlist(value)) return { kind: "list", order: value.map(idof) };
+    if (isobject(value)) return { kind: "object" };
+    return { kind: "value", value: value };
+}
+
+function same(a, b) {
+    return JSON.stringify(a) === JSON.stringify(b);
+}
+
+// --- flatten ----------------------------------------------------------------
+
+function flatten(value, pointer = "", records = new Map()) {
+    records.set(pointer, nodeof(value));
+    for (const [segment, item] of children(value)) {
+        flatten(item, child(pointer, segment), records);
+    }
+    return records;
+}
+
+function children(value) {
+    if (iskeyedlist(value)) return value.map((e) => [idof(e), e]);
+    if (isobject(value)) return Object.entries(value);
+    return [];
+}
+
+// --- unflatten --------------------------------------------------------------
+
+function unflatten(records) {
+    return records.has("") ? build(records, index(records), "") : undefined;
+}
+
+function index(records) {
+    const byparent = new Map();
+    for (const pointer of records.keys()) {
+        if (pointer === "") continue;
+        const parent = parentof(pointer);
+        if (!byparent.has(parent)) byparent.set(parent, []);
+        byparent.get(parent).push(pointer);
+    }
+    return byparent;
+}
+
+function build(records, byparent, pointer) {
+    const node = records.get(pointer);
+    if (node.kind === "object") return buildobject(records, byparent, pointer);
+    if (node.kind === "list") return buildlist(records, byparent, pointer);
+    return node.value;
+}
+
+function buildobject(records, byparent, pointer) {
+    const entries = (byparent.get(pointer) ?? [])
+        .map((p) => [keyof(p), build(records, byparent, p)]);
+    return Object.fromEntries(entries);
+}
+
+function buildlist(records, byparent, pointer) {
+    return records.get(pointer).order
+        .map((id) => child(pointer, id))
+        .filter((p) => records.has(p))
+        .map((p) => build(records, byparent, p));
+}
+
+export {
+    parentof, keyof, iskeyedlist, same, flatten, unflatten
+};

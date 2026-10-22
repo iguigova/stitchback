@@ -1,9 +1,7 @@
 {
   "posts": [
-    { "id": 1, "title": "json-server", "author": "typicode" }
+    { "id": "1", "title": "Local first", "author": "ada", "tags": ["offline"] },
+    { "id": "2", "title": "Merge, don't overwrite", "author": "grace", "tags": [] }
   ],
-  "comments": [
-    { "id": 1, "body": "some comment", "postId": 1 }
-  ],
-  "profile": { "name": "typicode" }
+  "profile": { "name": "ada", "theme": "dark" }
 }
