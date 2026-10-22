@@ -3,35 +3,54 @@
   <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>localstate</title>
+    <title>localstate demo</title>
+    <meta name="description"
+          content="Two devices, one plain REST server, offline edits merged
+                   field by field.">
     <link rel="stylesheet" href="index.css">
   </head>
   <body>
-    <main>
-      <h1>localstate <span id="replica"></span></h1>
+    <header class="intro">
+      <h1>localstate</h1>
+      <p class="tagline">Offline-first for the REST API you already have.</p>
       <p>
-        Edit the local copy, save it, and sync when you choose. Open
-        <a id="other" href="?replica=b">another replica</a> in a second tab
-        to make a concurrent edit.
+        Two devices share one plain REST server. Take one offline, edit on
+        both, and bring it back: every edit survives, field by field. Only
+        two different edits to the same field are a conflict, and
+        localstate tells you which.
       </p>
+      <details class="tour" open>
+        <summary>Try this</summary>
+        <ol>
+          <li>Switch <strong>Grace's phone</strong> offline.</li>
+          <li>On the phone, change the title of the first post. On Ada's
+              laptop, change its author.</li>
+          <li>Switch the phone back online. The post has both edits.</li>
+          <li>Take the phone offline again and change the <em>same</em>
+              title on both devices. Going online reports the
+              conflict.</li>
+        </ol>
+      </details>
+    </header>
 
-      <label for="url">Resource URL</label>
-      <input id="url" type="url" value="http://localhost:3000/posts">
-      <button id="load" type="button">Load</button>
-
-      <label for="body">Local copy (JSON)</label>
-      <textarea id="body" spellcheck="false"
-                aria-describedby="status"></textarea>
-      <div class="actions">
-        <button id="save" type="button">Save locally</button>
-        <button id="sync" type="button">Sync</button>
-      </div>
-
-      <p id="status" role="status" aria-live="polite"></p>
-
-      <h2>Conflicts</h2>
-      <ul id="conflicts"><li>None.</li></ul>
+    <main class="stage">
+      <section id="laptop" class="device" aria-labelledby="laptop-name">
+      </section>
+      <section id="server" class="server" aria-labelledby="server-name">
+      </section>
+      <section id="phone" class="device" aria-labelledby="phone-name">
+      </section>
     </main>
+
+    <footer class="outro">
+      <button id="reset" type="button">Start over</button>
+      <p>
+        Each device keeps its copy in its own IndexedDB database, so a
+        reload keeps your offline edits.
+        <a href="https://github.com/iguigova/localstate-poc">How it works,
+        and the code</a>.
+      </p>
+    </footer>
 
     <script type="module" src="index.js"></script>
   </body>

@@ -1,0 +1,142 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1100 750" width="1100" height="750" font-family="Arial, Helvetica, sans-serif" role="img" aria-labelledby="t d">
+<title id="t">How localstate works</title>
+<desc id="d">The app reads and edits a local copy kept in IndexedDB as base and ours. A sync fetches theirs from a plain REST server, merges base, ours and theirs record by record, writes only the difference back with POST, PUT and DELETE, and makes the server state the new base.</desc>
+<rect width="1100" height="750" rx="18" fill="#ffffff"/>
+<circle cx="340" cy="52" r="24" fill="#cfe2f3" stroke="#1c1c1e" stroke-width="1.5"/>
+<circle cx="332" cy="46" r="2.5" fill="#1c1c1e"/><circle cx="348" cy="46" r="2.5" fill="#1c1c1e"/>
+<path d="M329,58 q11,10 22,0" fill="none" stroke="#1c1c1e" stroke-width="1.8"/>
+<polygon points="302,92 318,92 318,178 326,178 310,196 294,178 302,178" fill="#cfe2f3" stroke="#1c1c1e" stroke-width="1.5"/>
+<text x="292" y="150" transform="rotate(-90 292 150)" fill="#1c1c1e" font-size="15" font-weight="700" text-anchor="middle">get(url)</text>
+<polygon points="362,92 378,92 378,178 386,178 370,196 354,178 362,178" fill="#cfe2f3" stroke="#1c1c1e" stroke-width="1.5"/>
+<text x="392" y="150" transform="rotate(-90 392 150)" fill="#1c1c1e" font-size="15" font-weight="700" text-anchor="middle">edit(url, data)</text>
+<rect x="20" y="24" width="255" height="96" rx="16" fill="#fff" stroke="#1c1c1e" stroke-width="1.5"/>
+<polygon points="275,60 306,70 275,80" fill="#fff" stroke="#1c1c1e" stroke-width="1.5"/>
+<line x1="275" y1="61" x2="275" y2="79" stroke="#fff" stroke-width="3"/>
+<text x="36" y="52.0" fill="#1c1c1e" font-size="15" font-weight="400" text-anchor="start">The app reads and edits a</text>
+<text x="36" y="71.5" fill="#1c1c1e" font-size="15" font-weight="400" text-anchor="start">resource by its URL, online</text>
+<text x="36" y="91.0" fill="#1c1c1e" font-size="15" font-weight="400" text-anchor="start">or not.</text>
+<rect x="430" y="24" width="290" height="96" rx="16" fill="#fff" stroke="#1c1c1e" stroke-width="1.5"/>
+<polygon points="430,85 404,120 430,105" fill="#fff" stroke="#1c1c1e" stroke-width="1.5"/>
+<line x1="430" y1="86" x2="430" y2="104" stroke="#fff" stroke-width="3"/>
+<text x="446" y="52.0" fill="#1c1c1e" font-size="15" font-weight="400" text-anchor="start">get answers at once from the</text>
+<text x="446" y="71.5" fill="#1c1c1e" font-size="15" font-weight="400" text-anchor="start">local copy. edit saves ours;</text>
+<text x="446" y="91.0" fill="#1c1c1e" font-size="15" font-weight="400" text-anchor="start">nothing leaves the device.</text>
+<path d="M230.0,214 v62 a110.0,14 0 0 0 220,0 v-62" fill="#cfe2f3" stroke="#1c1c1e" stroke-width="1.5"/>
+<ellipse cx="340" cy="214" rx="110.0" ry="14" fill="#cfe2f3" stroke="#1c1c1e" stroke-width="1.5"/>
+<text x="340" y="251.0" fill="#1c1c1e" font-size="20" font-weight="600" text-anchor="middle">Local state</text>
+<text x="340" y="273.0" fill="#5f6368" font-size="13" font-weight="400" text-anchor="middle">base · ours   (IndexedDB)</text>
+<polygon points="272,470 288,470 288,318 296,318 280,300 264,318 272,318" fill="#cfe2f3" stroke="#1c1c1e" stroke-width="1.5"/>
+<text x="260" y="385" transform="rotate(-90 260 385)" fill="#1c1c1e" font-size="15" font-weight="700" text-anchor="middle">GET  theirs</text>
+<path d="M340,468 C304,420 304,350 340,302" fill="none" stroke="#8e24aa" stroke-width="3" marker-end="url(#p)"/>
+<text x="328" y="385" transform="rotate(-90 328 385)" fill="#8e24aa" font-size="16" font-weight="700" text-anchor="middle">Merge</text>
+<polygon points="392,300 408,300 408,452 416,452 400,470 384,452 392,452" fill="#cfe2f3" stroke="#1c1c1e" stroke-width="1.5"/>
+<text x="424" y="385" transform="rotate(-90 424 385)" fill="#1c1c1e" font-size="15" font-weight="700" text-anchor="middle">POST · PUT · DELETE</text>
+<path d="M348,302 v166" fill="none" stroke="#8e24aa" stroke-width="3" stroke-dasharray="2 0"/>
+<text x="366" y="385" transform="rotate(-90 366 385)" fill="#8e24aa" font-size="16" font-weight="700" text-anchor="middle">Diff</text>
+<defs><marker id="p" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#8e24aa"/></marker></defs>
+<rect x="20" y="300" width="225" height="135" rx="16" fill="#fff" stroke="#1c1c1e" stroke-width="1.5"/>
+<polygon points="245,320 258,330 245,340" fill="#fff" stroke="#1c1c1e" stroke-width="1.5"/>
+<line x1="245" y1="321" x2="245" y2="339" stroke="#fff" stroke-width="3"/>
+<text x="36" y="328.0" fill="#1c1c1e" font-size="15" font-weight="400" text-anchor="start">sync fetches theirs</text>
+<text x="36" y="347.5" fill="#1c1c1e" font-size="15" font-weight="400" text-anchor="start">and merges base, ours</text>
+<text x="36" y="367.0" fill="#1c1c1e" font-size="15" font-weight="400" text-anchor="start">and theirs record by</text>
+<text x="36" y="386.5" fill="#1c1c1e" font-size="15" font-weight="400" text-anchor="start">record, the way</text>
+<text x="36" y="406.0" fill="#1c1c1e" font-size="15" font-weight="400" text-anchor="start">git merge does.</text>
+<path d="M230.0,498 v62 a110.0,14 0 0 0 220,0 v-62" fill="#cfe2f3" stroke="#1c1c1e" stroke-width="1.5"/>
+<ellipse cx="340" cy="498" rx="110.0" ry="14" fill="#cfe2f3" stroke="#1c1c1e" stroke-width="1.5"/>
+<text x="340" y="535.0" fill="#1c1c1e" font-size="20" font-weight="600" text-anchor="middle">Your REST API</text>
+<text x="340" y="557.0" fill="#5f6368" font-size="13" font-weight="400" text-anchor="middle">unchanged · no sync endpoint</text>
+<rect x="20" y="600" width="300" height="130" rx="16" fill="#fff" stroke="#1c1c1e" stroke-width="1.5"/>
+<polygon points="218,600 228,545 238,600" fill="#fff" stroke="#1c1c1e" stroke-width="1.5"/>
+<line x1="219" y1="600" x2="237" y2="600" stroke="#fff" stroke-width="3"/>
+<text x="36" y="628.0" fill="#1c1c1e" font-size="15" font-weight="400" text-anchor="start">Only the difference goes back:</text>
+<text x="36" y="647.5" fill="#1c1c1e" font-size="15" font-weight="400" text-anchor="start">POST added, PUT changed,</text>
+<text x="36" y="667.0" fill="#1c1c1e" font-size="15" font-weight="400" text-anchor="start">DELETE removed. A fresh GET</text>
+<text x="36" y="686.5" fill="#1c1c1e" font-size="15" font-weight="400" text-anchor="start">then becomes the new base.</text>
+<rect x="360" y="610" width="340" height="120" rx="16" fill="#fff" stroke="#1c1c1e" stroke-width="1.5"/>
+<polygon points="410,610 420,580 430,610" fill="#fff" stroke="#1c1c1e" stroke-width="1.5"/>
+<line x1="411" y1="610" x2="429" y2="610" stroke="#fff" stroke-width="3"/>
+<text x="376" y="638.0" fill="#1c1c1e" font-size="15" font-weight="400" text-anchor="start">With an ETag, the PUT carries</text>
+<text x="376" y="657.5" fill="#1c1c1e" font-size="15" font-weight="400" text-anchor="start">If-Match. 412 means someone wrote</text>
+<text x="376" y="677.0" fill="#1c1c1e" font-size="15" font-weight="400" text-anchor="start">first: fetch, re-merge, retry.</text>
+<polygon points="470,330 560,330 560,290 640,385 560,480 560,440 470,440" fill="#cfe2f3" stroke="#1c1c1e" stroke-width="1.5"/>
+<text x="485" y="365.0" fill="#1c1c1e" font-size="15" font-weight="400" text-anchor="start">Each record</text>
+<text x="485" y="384.5" fill="#1c1c1e" font-size="15" font-weight="400" text-anchor="start">is decided</text>
+<text x="485" y="404.0" fill="#1c1c1e" font-size="15" font-weight="400" text-anchor="start">on its own</text>
+<text x="660" y="184" font-size="18" font-weight="700" fill="#1c1c1e">Records</text>
+<rect x="660" y="200" width="104" height="40" fill="#3c4043" stroke="#fff"/>
+<text x="668" y="225.0" fill="#fff" font-size="13" font-weight="700" text-anchor="start">JSON Pointer</text>
+<rect x="764" y="200" width="62" height="40" fill="#3c4043" stroke="#fff"/>
+<text x="772" y="225.0" fill="#fff" font-size="13" font-weight="700" text-anchor="start">base</text>
+<rect x="826" y="200" width="62" height="40" fill="#3c4043" stroke="#fff"/>
+<text x="834" y="225.0" fill="#fff" font-size="13" font-weight="700" text-anchor="start">ours</text>
+<rect x="888" y="200" width="62" height="40" fill="#3c4043" stroke="#fff"/>
+<text x="896" y="225.0" fill="#fff" font-size="13" font-weight="700" text-anchor="start">theirs</text>
+<rect x="950" y="200" width="130" height="40" fill="#3c4043" stroke="#fff"/>
+<text x="958" y="225.0" fill="#fff" font-size="13" font-weight="700" text-anchor="start">result</text>
+<rect x="660" y="240" width="104" height="40" fill="#f1f3f4" stroke="#bdc1c6"/>
+<text x="668" y="265" font-size="13" fill="#1c1c1e" font-family="Menlo, Consolas, monospace">/1/title</text>
+<rect x="764" y="240" width="62" height="40" fill="#fff" stroke="#bdc1c6"/>
+<text x="772" y="265" font-size="13" fill="#1c1c1e" font-family="Menlo, Consolas, monospace">Hi</text>
+<rect x="826" y="240" width="62" height="40" fill="#fff" stroke="#bdc1c6"/>
+<text x="834" y="265" font-size="13" fill="#1c1c1e" font-family="Menlo, Consolas, monospace">Hello</text>
+<rect x="888" y="240" width="62" height="40" fill="#fff" stroke="#bdc1c6"/>
+<text x="896" y="265" font-size="13" fill="#1c1c1e" font-family="Menlo, Consolas, monospace">Hi</text>
+<rect x="950" y="240" width="130" height="40" fill="#e8e3f3" stroke="#bdc1c6"/>
+<text x="958" y="265" font-size="13" fill="#1c1c1e">ours</text>
+<rect x="660" y="280" width="104" height="40" fill="#f1f3f4" stroke="#bdc1c6"/>
+<text x="668" y="305" font-size="13" fill="#1c1c1e" font-family="Menlo, Consolas, monospace">/1/author</text>
+<rect x="764" y="280" width="62" height="40" fill="#fff" stroke="#bdc1c6"/>
+<text x="772" y="305" font-size="13" fill="#1c1c1e" font-family="Menlo, Consolas, monospace">ada</text>
+<rect x="826" y="280" width="62" height="40" fill="#fff" stroke="#bdc1c6"/>
+<text x="834" y="305" font-size="13" fill="#1c1c1e" font-family="Menlo, Consolas, monospace">ada</text>
+<rect x="888" y="280" width="62" height="40" fill="#fff" stroke="#bdc1c6"/>
+<text x="896" y="305" font-size="13" fill="#1c1c1e" font-family="Menlo, Consolas, monospace">grace</text>
+<rect x="950" y="280" width="130" height="40" fill="#e8e3f3" stroke="#bdc1c6"/>
+<text x="958" y="305" font-size="13" fill="#1c1c1e">theirs</text>
+<rect x="660" y="320" width="104" height="40" fill="#f1f3f4" stroke="#bdc1c6"/>
+<text x="668" y="345" font-size="13" fill="#1c1c1e" font-family="Menlo, Consolas, monospace">/2/title</text>
+<rect x="764" y="320" width="62" height="40" fill="#fff" stroke="#bdc1c6"/>
+<text x="772" y="345" font-size="13" fill="#1c1c1e" font-family="Menlo, Consolas, monospace">Go</text>
+<rect x="826" y="320" width="62" height="40" fill="#fff" stroke="#bdc1c6"/>
+<text x="834" y="345" font-size="13" fill="#1c1c1e" font-family="Menlo, Consolas, monospace">Run</text>
+<rect x="888" y="320" width="62" height="40" fill="#fff" stroke="#bdc1c6"/>
+<text x="896" y="345" font-size="13" fill="#1c1c1e" font-family="Menlo, Consolas, monospace">Walk</text>
+<rect x="950" y="320" width="130" height="40" fill="#fde7e9" stroke="#bdc1c6"/>
+<text x="958" y="345" font-size="13" fill="#a3141c">conflict: you pick</text>
+<rect x="660" y="360" width="104" height="40" fill="#f1f3f4" stroke="#bdc1c6"/>
+<text x="668" y="385" font-size="13" fill="#1c1c1e" font-family="Menlo, Consolas, monospace">/3</text>
+<rect x="764" y="360" width="62" height="40" fill="#fff" stroke="#bdc1c6"/>
+<text x="772" y="385" font-size="13" fill="#1c1c1e" font-family="Menlo, Consolas, monospace">–</text>
+<rect x="826" y="360" width="62" height="40" fill="#fff" stroke="#bdc1c6"/>
+<text x="834" y="385" font-size="13" fill="#1c1c1e" font-family="Menlo, Consolas, monospace">–</text>
+<rect x="888" y="360" width="62" height="40" fill="#fff" stroke="#bdc1c6"/>
+<text x="896" y="385" font-size="13" fill="#1c1c1e" font-family="Menlo, Consolas, monospace">{…}</text>
+<rect x="950" y="360" width="130" height="40" fill="#e8e3f3" stroke="#bdc1c6"/>
+<text x="958" y="385" font-size="13" fill="#1c1c1e">theirs: added</text>
+<rect x="660" y="400" width="104" height="40" fill="#f1f3f4" stroke="#bdc1c6"/>
+<text x="668" y="425" font-size="13" fill="#1c1c1e" font-family="Menlo, Consolas, monospace">/4</text>
+<rect x="764" y="400" width="62" height="40" fill="#fff" stroke="#bdc1c6"/>
+<text x="772" y="425" font-size="13" fill="#1c1c1e" font-family="Menlo, Consolas, monospace">{…}</text>
+<rect x="826" y="400" width="62" height="40" fill="#fff" stroke="#bdc1c6"/>
+<text x="834" y="425" font-size="13" fill="#1c1c1e" font-family="Menlo, Consolas, monospace">–</text>
+<rect x="888" y="400" width="62" height="40" fill="#fff" stroke="#bdc1c6"/>
+<text x="896" y="425" font-size="13" fill="#1c1c1e" font-family="Menlo, Consolas, monospace">{…}</text>
+<rect x="950" y="400" width="130" height="40" fill="#e8e3f3" stroke="#bdc1c6"/>
+<text x="958" y="425" font-size="13" fill="#1c1c1e">ours: deleted</text>
+<rect x="660" y="440" width="104" height="40" fill="#f1f3f4" stroke="#bdc1c6"/>
+<text x="668" y="465" font-size="13" fill="#1c1c1e" font-family="Menlo, Consolas, monospace">/5/tags</text>
+<rect x="764" y="440" width="62" height="40" fill="#fff" stroke="#bdc1c6"/>
+<text x="772" y="465" font-size="13" fill="#1c1c1e" font-family="Menlo, Consolas, monospace">[a]</text>
+<rect x="826" y="440" width="62" height="40" fill="#fff" stroke="#bdc1c6"/>
+<text x="834" y="465" font-size="13" fill="#1c1c1e" font-family="Menlo, Consolas, monospace">[a,b]</text>
+<rect x="888" y="440" width="62" height="40" fill="#fff" stroke="#bdc1c6"/>
+<text x="896" y="465" font-size="13" fill="#1c1c1e" font-family="Menlo, Consolas, monospace">[a,b]</text>
+<rect x="950" y="440" width="130" height="40" fill="#e8e3f3" stroke="#bdc1c6"/>
+<text x="958" y="465" font-size="13" fill="#1c1c1e">both: same change</text>
+<text x="660" y="510.0" fill="#5f6368" font-size="14" font-weight="400" text-anchor="start">Absent is a value, so a delete is a change.</text>
+<text x="660" y="528.2" fill="#5f6368" font-size="14" font-weight="400" text-anchor="start">Arrays of objects with ids are keyed by id,</text>
+<text x="660" y="546.4" fill="#5f6368" font-size="14" font-weight="400" text-anchor="start">so an insert renames nothing.</text>
+<text x="660" y="564.6" fill="#5f6368" font-size="14" font-weight="400" text-anchor="start">Only two different edits to one record</text>
+<text x="660" y="582.8" fill="#5f6368" font-size="14" font-weight="400" text-anchor="start">are a conflict.</text>
+</svg>

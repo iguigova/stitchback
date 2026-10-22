@@ -9,8 +9,8 @@
     "node": ">=22.12.0"
   },
   "scripts": {
-    "start": "test -f data.json || cp db.json data.json; json-server data.json",
-    "test": "node --test --experimental-test-coverage --test-coverage-include='public/modules/**' --test-coverage-lines=100 'test/*.test.js'"
+    "start": "test -f data.json || cp public/db.json data.json; json-server data.json",
+    "test": "node --test --experimental-test-coverage --test-coverage-include='public/modules/**' --test-coverage-include='public/demo/**' --test-coverage-lines=100 'test/*.test.js'"
   },
   "devDependencies": {
     "fake-indexeddb": "6.2.5",

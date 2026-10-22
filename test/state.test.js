@@ -17,7 +17,7 @@ import { RemoteError } from "../public/modules/fetch.js";
 
 const root = join(import.meta.dirname, "..");
 const jsonserver = join(root, "node_modules/.bin/json-server");
-const seed = join(root, "db.json");
+const seed = join(root, "public/db.json");
 
 let server;
 let origin;
