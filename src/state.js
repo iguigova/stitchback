@@ -117,6 +117,29 @@ async function adopt(db, url, posted, response, resolve) {
     return conflicts;
 }
 
+// --- syncing on its own -----------------------------------------------------
+
+// Syncs now, then whenever the browser comes back online or the page is
+// shown again; visibilitychange bubbles from the document to the window.
+// Being offline is expected and stays quiet; any other failure goes to
+// onerror. Returns a function that stops it.
+function autosync(db, url, options = {}) {
+    const { resolve, onsync = () => {}, onerror = () => {} } = options;
+    const run = () => sync(db, url, resolve).then(onsync, (error) => {
+        if (!(error instanceof TypeError)) onerror(error);
+    });
+    const onvisible = () => {
+        if (globalThis.document?.visibilityState !== "hidden") run();
+    };
+    globalThis.addEventListener("online", run);
+    globalThis.addEventListener("visibilitychange", onvisible);
+    run();
+    return () => {
+        globalThis.removeEventListener("online", run);
+        globalThis.removeEventListener("visibilitychange", onvisible);
+    };
+}
+
 // --- writing back -----------------------------------------------------------
 
 // A collection of entities is written entity by entity, the way REST
@@ -188,4 +211,4 @@ function entity(url, e) {
     return new URL(`${base}/${encodeURIComponent(e.id)}`, url.origin);
 }
 
-export { get, local, edit, sync, StaleError };
+export { get, local, edit, sync, autosync, StaleError };

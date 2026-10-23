@@ -33,7 +33,7 @@ server. The server stays exactly as it is: if it speaks `GET`, `POST`,
   There are two kinds of conflict: two different edits to one field, and
   an edit to something the other side deleted. You are told about both.
 - **Small.** Plain ES modules, no dependencies, no build step: about
-  600 lines with comments, 6 kB gzipped.
+  600 lines with comments, 6.5 kB gzipped.
 
 ## How it works
 
@@ -141,7 +141,7 @@ Types ship in the package.
 ## API
 
 ```js
-import { openstore, get, local, edit, sync } from "stitchback";
+import { openstore, get, edit, sync, autosync } from "stitchback";
 
 const db = await openstore("my-app");            // one database per replica
 const url = new URL("https://api.example.com/posts");
@@ -149,6 +149,9 @@ const url = new URL("https://api.example.com/posts");
 await get(db, url, render);   // render(local) at once, then render(synced)
 await edit(db, url, posts);   // save an edit locally; works offline
 const { data, conflicts } = await sync(db, url, resolve);
+
+// Or sync again on every return online and to the page:
+const stop = autosync(db, url, { onsync: ({ data }) => render(data) });
 ```
 
 - **`openstore(name)`** opens, or creates, the IndexedDB database that
@@ -168,6 +171,11 @@ const { data, conflicts } = await sync(db, url, resolve);
   carrying the HTTP status. Call it whenever you like: syncs of one
   resource run one at a time, across tabs too, and an edit made while one
   runs is kept for the next.
+- **`autosync(db, url, { resolve, onsync, onerror })`** syncs now, then
+  again whenever the browser comes back online or the page is shown
+  again. Being offline stays quiet; any other failure goes to `onerror`.
+  It returns a function that stops it. It does not sync after each edit;
+  call `sync` for that.
 - **`resolve(conflict)`** receives `{ pointer, base, ours, theirs }`. Each
   side is a record (`{ kind: "value", value }`, `{ kind: "object" }` or
   `{ kind: "list", order }`) or `undefined` for deleted. `resolve`

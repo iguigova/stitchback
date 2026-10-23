@@ -10,7 +10,7 @@ import {
     openstore, closestore, load, update
 } from "../src/storage.js";
 import {
-    get, local, edit, sync, StaleError
+    get, local, edit, sync, autosync, StaleError
 } from "../src/state.js";
 import { RemoteError } from "../src/fetch.js";
 
@@ -334,6 +334,94 @@ function put(url, data) {
         body: JSON.stringify(data)
     });
 }
+
+// --- autosync ---------------------------------------------------------------
+
+// Node's global object is no EventTarget, as a window is, so these tests
+// lend it one.
+async function withevents(work) {
+    const target = new EventTarget();
+    const names = ["addEventListener", "removeEventListener", "dispatchEvent"];
+    for (const name of names) globalThis[name] = target[name].bind(target);
+    try {
+        return await work();
+    } finally {
+        for (const name of names) delete globalThis[name];
+    }
+}
+
+// Collects the results onsync receives, and waits for the next one.
+function results() {
+    const seen = [];
+    let next;
+    return {
+        seen: seen,
+        onsync: (result) => { seen.push(result); next?.(); },
+        another: () => new Promise((resolve) => { next = resolve; })
+    };
+}
+
+test("autosync syncs at once, online and when shown, until stopped",
+    async () => {
+        const db = await replica();
+        const synced = results();
+        await withevents(async () => {
+            let pending = synced.another();
+            const stop = autosync(db, posturl(), { onsync: synced.onsync });
+            await pending;
+            for (const name of ["online", "visibilitychange"]) {
+                pending = synced.another();
+                globalThis.dispatchEvent(new Event(name));
+                await pending;
+            }
+            stop();
+            globalThis.dispatchEvent(new Event("online"));
+            await sync(db, posturl());
+        });
+        assert.equal(synced.seen.length, 3);
+        assert.ok(synced.seen.every((r) => Array.isArray(r.data)));
+        closestore(db);
+    });
+
+test("autosync waits while the page is hidden", async () => {
+    const db = await replica();
+    const synced = results();
+    globalThis.document = { visibilityState: "hidden" };
+    try {
+        await withevents(async () => {
+            const pending = synced.another();
+            const stop = autosync(db, posturl(), { onsync: synced.onsync });
+            await pending;
+            globalThis.dispatchEvent(new Event("visibilitychange"));
+            stop();
+            await sync(db, posturl());
+        });
+    } finally {
+        delete globalThis.document;
+    }
+    assert.equal(synced.seen.length, 1);
+    closestore(db);
+});
+
+test("autosync is quiet offline and reports any other failure",
+    async () => {
+        const db = await replica();
+        const offline = new URL(`http://localhost:${await freeport()}/posts`);
+        const errors = [];
+        await withevents(async () => {
+            const failed = new Promise((resolve) => {
+                const onerror = (error) => { errors.push(error); resolve(); };
+                const missing = new URL(`${origin}/nothing-here`);
+                autosync(db, missing, { onerror: onerror })();
+            });
+            await failed;
+            autosync(db, offline, { onerror: (e) => errors.push(e) })();
+            await sync(db, offline).catch(() => {});
+        });
+        assert.equal(errors.length, 1);
+        assert.ok(errors[0] instanceof RemoteError);
+        closestore(db);
+    });
 
 // --- ETag -------------------------------------------------------------------
 

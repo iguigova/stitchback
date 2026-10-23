@@ -46,6 +46,18 @@ export function edit<T = unknown>(
 export function sync<T = unknown>(
     db: IDBDatabase, url: URL, resolve?: Resolve): Promise<Synced<T>>;
 
+export interface AutosyncOptions<T = unknown> {
+    resolve?: Resolve;
+    /** Called after each sync that succeeds. */
+    onsync?: (result: Synced<T>) => void;
+    /** Called when a sync fails for any reason but being offline. */
+    onerror?: (error: Error) => void;
+}
+
+/** Syncs now and on every return online or to the page; returns stop. */
+export function autosync<T = unknown>(
+    db: IDBDatabase, url: URL, options?: AutosyncOptions<T>): () => void;
+
 /** The default resolver: keeps the local side. */
 export function keepours(conflict: Conflict): NodeRecord | undefined;
 
