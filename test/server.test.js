@@ -3,14 +3,14 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { createserver } from "../public/demo/server.js";
-import { openstore, closestore } from "../public/modules/storage.js";
-import { edit, sync } from "../public/modules/state.js";
+import { createserver } from "../demo/server.js";
+import { openstore, closestore } from "../src/storage.js";
+import { edit, sync } from "../src/state.js";
 
 // The demo's server must be a plain REST server: these tests drive it the
 // way a client would, then sync two replicas through it.
 
-const seedfile = join(import.meta.dirname, "../public/db.json");
+const seedfile = join(import.meta.dirname, "../demo/db.json");
 const seed = JSON.parse(await readFile(seedfile, "utf8"));
 const origin = "https://demo.test";
 

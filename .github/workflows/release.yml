@@ -1,0 +1,31 @@
+# Publishes to npm when a GitHub release is published. npm trusted
+# publishing authenticates the run and adds provenance, so no token is
+# stored. It needs npm 11.5.1 or newer, which Node 24 ships.
+name: release
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+      - name: The release tag names the package version
+        run: |
+          version=$(node -p 'require("./package.json").version')
+          test "$GITHUB_REF_NAME" = "v$version"
+      - run: npm ci
+      - run: npm test
+      - run: npm publish

@@ -33,6 +33,12 @@ async function get(db, url, ondata) {
     return result;
 }
 
+// The stored { url, base, ours }, or undefined before the first sync.
+// Comparing ours with base shows what has not reached the server yet.
+function local(db, url) {
+    return load(db, url.href);
+}
+
 async function edit(db, url, data) {
     await update(db, url.href, (doc) => {
         if (doc === undefined) {
@@ -182,4 +188,4 @@ function entity(url, e) {
     return new URL(`${base}/${encodeURIComponent(e.id)}`, url.origin);
 }
 
-export { get, edit, sync, StaleError };
+export { get, local, edit, sync, StaleError };

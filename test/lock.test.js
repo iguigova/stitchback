@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { exclusive, queued } from "../public/modules/lock.js";
+import { exclusive, queued } from "../src/lock.js";
 
 // queued is the fallback where Web Locks is missing; exclusive uses Web
 // Locks where the runtime has them, as Node does from 24.5.

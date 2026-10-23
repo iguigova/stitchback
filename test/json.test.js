@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
     parentof, keyof, iskeyedlist, same, flatten, unflatten
-} from "../public/modules/json.js";
+} from "../src/json.js";
 
 const roundtrip = (value) => unflatten(flatten(value));
 

@@ -1,7 +1,7 @@
-import { openstore, closestore, load } from "./modules/storage.js";
-import { edit, sync } from "./modules/state.js";
-import { flatten, keyof, parentof, same } from "./modules/json.js";
-import { createserver } from "./demo/server.js";
+import { openstore, closestore, local, edit, sync } from "../src/index.js";
+// json.js is internal; the demo uses it only to count and name fields.
+import { flatten, keyof, parentof, same } from "../src/json.js";
+import { createserver } from "./server.js";
 
 // The page plays a whole system: two devices, each with its own IndexedDB
 // database, and one plain REST server. The server runs in this page unless
@@ -12,7 +12,7 @@ const latency = 300;
 const savedkey = "stitchback-demo";
 const loglength = 8;
 
-const seed = await (await fetch("db.json")).json();
+const seed = await (await fetch("demo/db.json")).json();
 const api = new URLSearchParams(location.search).get("api");
 const url = new URL(api ?? `${demoorigin}/posts`);
 const saved = restore();
@@ -97,12 +97,12 @@ function failure(error) {
 }
 
 async function start(device) {
-    const doc = await load(device.db, url.href);
+    const doc = await local(device.db, url);
     if (doc === undefined || device.online) await syncone(device);
 }
 
 async function change(device, transform) {
-    const doc = await load(device.db, url.href);
+    const doc = await local(device.db, url);
     device.conflicts = [];
     await edit(device.db, url, transform(doc.ours));
     if (device.online) await syncfrom(device);
@@ -142,7 +142,7 @@ async function syncfrom(device) {
 
 async function syncone(device) {
     caller = device.name;
-    const doc = await load(device.db, url.href);
+    const doc = await local(device.db, url);
     if (doc !== undefined) rescued += overwritten(doc, await peek());
     const result = await sync(device.db, url);
     if (result.conflicts.length > 0) device.conflicts = result.conflicts;
@@ -197,7 +197,7 @@ async function renderall() {
 }
 
 async function renderdevice(device) {
-    const doc = await load(device.db, url.href);
+    const doc = await local(device.db, url);
     const section = document.getElementById(device.key);
     const view = el("div", {}, ...devicehead(device), status(device, doc),
         postlist(device, doc), addbutton(device), conflictlist(device));

@@ -2,7 +2,8 @@
 
 **Offline-first for the REST API you already have.**
 
-[![tests](https://github.com/iguigova/stitchback/actions/workflows/pages.yml/badge.svg)](https://github.com/iguigova/stitchback/actions/workflows/pages.yml)
+[![ci](https://github.com/iguigova/stitchback/actions/workflows/ci.yml/badge.svg)](https://github.com/iguigova/stitchback/actions/workflows/ci.yml)
+[![npm](https://img.shields.io/npm/v/stitchback)](https://www.npmjs.com/package/stitchback)
 
 ### ▶ [Try the live demo](https://iguigova.github.io/stitchback/)
 
@@ -31,7 +32,8 @@ server. The server stays exactly as it is: if it speaks `GET`, `POST`,
 - **Nothing lost silently.** Edits to different fields always merge.
   There are two kinds of conflict: two different edits to one field, and
   an edit to something the other side deleted. You are told about both.
-- **Small.** Six dependency-free ES modules, about 500 lines.
+- **Small.** Plain ES modules, no dependencies, no build step: about
+  600 lines with comments, 6 kB gzipped.
 
 ## How it works
 
@@ -120,27 +122,26 @@ a lost one is expensive.
 such as Yjs are the right tool, and very large collections, which are
 merged whole on every sync.
 
-## Try it locally
-
-Requires Node 22.12 or newer.
+## Install
 
 ```sh
-npm install
-npm start
+npm install stitchback
 ```
 
-- <http://localhost:3000/> is the demo, with its server running in the
-  page.
-- <http://localhost:3000/?api=http://localhost:3000/posts> points both
-  devices at a real [json-server](https://github.com/typicode/json-server)
-  instead. `npm start` serves a working copy, `data.json`, so the seed in
-  `public/db.json` stays clean; delete `data.json` to start over.
+stitchback is plain ES modules with no dependencies and no build step, so
+a page can also import it straight from a CDN:
+
+```js
+import { openstore, get, edit, sync } from
+    "https://cdn.jsdelivr.net/npm/stitchback@0.1.0/src/index.js";
+```
+
+Types ship in the package.
 
 ## API
 
 ```js
-import { openstore } from "./modules/storage.js";
-import { get, edit, sync } from "./modules/state.js";
+import { openstore, get, local, edit, sync } from "stitchback";
 
 const db = await openstore("my-app");            // one database per replica
 const url = new URL("https://api.example.com/posts");
@@ -150,8 +151,13 @@ await edit(db, url, posts);   // save an edit locally; works offline
 const { data, conflicts } = await sync(db, url, resolve);
 ```
 
+- **`openstore(name)`** opens, or creates, the IndexedDB database that
+  holds one replica's resources. **`closestore(db)`** closes it.
 - **`get(db, url, ondata)`** calls `ondata` with the local copy straight
   away, if there is one, then syncs and calls it again with the result.
+- **`local(db, url)`** returns the stored `{ url, base, ours }`, or
+  `undefined` before the first sync. Where `ours` differs from `base` is
+  what has not reached the server yet.
 - **`edit(db, url, data)`** replaces the local copy. The resource must
   have been fetched once, so there is a `base` to merge against.
 - **`sync(db, url, resolve)`** merges and writes back. It returns the
@@ -159,14 +165,14 @@ const { data, conflicts } = await sync(db, url, resolve);
   rejects with fetch's `TypeError` and leaves the local copy untouched. If
   the server keeps changing under it for three attempts, it rejects with
   a `StaleError`. Any other refused request rejects with a `RemoteError`
-  carrying the HTTP status.
-  Call it whenever you like: syncs of one resource run one at a time,
-  across tabs too, and an edit made while one runs is kept for the next.
+  carrying the HTTP status. Call it whenever you like: syncs of one
+  resource run one at a time, across tabs too, and an edit made while one
+  runs is kept for the next.
 - **`resolve(conflict)`** receives `{ pointer, base, ours, theirs }`. Each
   side is a record (`{ kind: "value", value }`, `{ kind: "object" }` or
   `{ kind: "list", order }`) or `undefined` for deleted. `resolve`
   returns `conflict.ours` or `conflict.theirs`, the side to keep. The
-  default keeps ours.
+  default, `keepours`, keeps ours.
 
 ## Limits
 
@@ -190,32 +196,48 @@ Each of these is a design choice worth knowing:
 - **Arrays without ids are atomic.** `["a", "b"]` merges as one value.
 - **The resource must round-trip.** What `GET` returns is what `PUT`
   accepts, so views such as `?_embed=` are read-only for this purpose.
+- **Across tabs needs Web Locks.** Every current browser has them, but
+  only on HTTPS or `localhost`. Elsewhere syncs run one at a time within
+  each page only.
 
 ## Development
 
+Requires Node 22.12 or newer.
+
 ```sh
+npm install
+npm start     # the demo at http://localhost:3000/
 npm test
 ```
+
+`npm start` also serves a real
+[json-server](https://github.com/typicode/json-server) from a working
+copy, `data.json`, so the seed in `demo/db.json` stays clean; delete
+`data.json` to start over.
+<http://localhost:3000/?api=http://localhost:3000/posts> points both
+devices of the demo at it instead of the server in the page.
 
 The tests run on Node's built-in runner. They cover the flattening, every
 merge rule, the demo's server, and sync between replicas through a real
 json-server, including offline, deletion, conflicts, concurrent syncs,
 edits made during a sync and a server that enforces `ETag`. The run fails
-below 100% line coverage of `public/modules` and `public/demo`. Every
-push runs them on GitHub Actions under Node 22, which has no Web Locks,
-and Node 24, which has them; a green `main` publishes `public/` as the
-live demo.
+below 100% line coverage of `src` and `demo`. Every push runs them on
+GitHub Actions under Node 22, which has no Web Locks, and Node 24, which
+has them; a green `main` publishes the live demo. Publishing a GitHub
+release tagged `v` plus the version in `package.json` publishes the
+package to npm.
 
-| Module                      | Responsibility                               |
-|-----------------------------|----------------------------------------------|
-| `public/modules/json.js`    | flatten a document into records and back     |
-| `public/modules/merge.js`   | three-way merge of records                   |
-| `public/modules/state.js`   | `get`, `edit`, `sync`, and writing back      |
-| `public/modules/storage.js` | one IndexedDB store of `{ url, base, ours }` |
-| `public/modules/lock.js`    | one sync at a time, through Web Locks        |
-| `public/modules/fetch.js`   | HTTP with `ETag` and typed errors            |
-| `public/demo/server.js`     | the demo's in-page REST server               |
+| Module                | Responsibility                                   |
+|-----------------------|--------------------------------------------------|
+| `src/index.js`        | the public API, typed by `src/index.d.ts`        |
+| `src/json.js`         | flatten a document into records and back         |
+| `src/merge.js`        | three-way merge of records                       |
+| `src/state.js`        | `get`, `local`, `edit`, `sync`, and writing back |
+| `src/storage.js`      | one IndexedDB store of `{ url, base, ours }`     |
+| `src/lock.js`         | one sync at a time, through Web Locks            |
+| `src/fetch.js`        | HTTP with `ETag` and typed errors                |
+| `index.html`, `demo/` | the live demo and its in-page REST server        |
 
 ## License
 
-MIT
+[MIT](LICENSE)

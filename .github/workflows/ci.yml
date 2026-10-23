@@ -1,5 +1,5 @@
-# Tests every push, and publishes public/ as the live demo from main.
-name: test and publish the demo
+# Tests every push, and publishes the live demo from main.
+name: ci
 
 on:
   push:
@@ -41,8 +41,9 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: actions/configure-pages@v6
+      - run: mkdir _site && cp -r index.html demo src _site/
       - uses: actions/upload-pages-artifact@v5
         with:
-          path: public
+          path: _site
       - id: deployment
         uses: actions/deploy-pages@v5

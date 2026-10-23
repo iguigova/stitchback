@@ -1,16 +1,40 @@
 {
   "name": "stitchback",
-  "version": "1.0.0",
-  "description": "Offline-first, field-level three-way merge for REST APIs you don't control",
+  "version": "0.1.0",
+  "description": "Offline-first for the REST API you already have: edits made offline are merged field by field with the server's changes, over plain GET, POST, PUT and DELETE.",
+  "keywords": [
+    "offline-first",
+    "offline",
+    "sync",
+    "rest",
+    "three-way-merge",
+    "merge",
+    "indexeddb",
+    "local-first",
+    "conflict-resolution"
+  ],
+  "homepage": "https://iguigova.github.io/stitchback/",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/iguigova/stitchback.git"
+  },
+  "bugs": "https://github.com/iguigova/stitchback/issues",
+  "author": "Ilka Guigova",
   "license": "MIT",
   "type": "module",
-  "private": true,
-  "engines": {
-    "node": ">=22.12.0"
+  "exports": {
+    ".": {
+      "types": "./src/index.d.ts",
+      "default": "./src/index.js"
+    }
   },
+  "files": [
+    "src"
+  ],
+  "sideEffects": false,
   "scripts": {
-    "start": "test -f data.json || cp public/db.json data.json; json-server data.json",
-    "test": "node --test --experimental-test-coverage --test-coverage-include='public/modules/**' --test-coverage-include='public/demo/**' --test-coverage-lines=100 'test/*.test.js'"
+    "start": "test -f data.json || cp demo/db.json data.json; json-server data.json --static .",
+    "test": "node --test --experimental-test-coverage --test-coverage-include='src/**' --test-coverage-include='demo/**' --test-coverage-lines=100 'test/*.test.js'"
   },
   "devDependencies": {
     "fake-indexeddb": "6.2.5",

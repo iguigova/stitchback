@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { merge } from "../public/modules/merge.js";
+import { merge } from "../src/merge.js";
 
 const keeptheirs = (conflict) => conflict.theirs;
 

@@ -8,16 +8,18 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
     openstore, closestore, load, update
-} from "../public/modules/storage.js";
-import { get, edit, sync, StaleError } from "../public/modules/state.js";
-import { RemoteError } from "../public/modules/fetch.js";
+} from "../src/storage.js";
+import {
+    get, local, edit, sync, StaleError
+} from "../src/state.js";
+import { RemoteError } from "../src/fetch.js";
 
 // Two replicas sync through a real json-server; a small server of our own
 // covers the ETag path json-server does not implement.
 
 const root = join(import.meta.dirname, "..");
 const jsonserver = join(root, "node_modules/.bin/json-server");
-const seed = join(root, "public/db.json");
+const seed = join(root, "demo/db.json");
 
 let server;
 let origin;
@@ -179,6 +181,17 @@ test("get shows the local copy first, then the synced one", async () => {
     await get(db, posturl(), (data) => shown.push(data));
     await get(db, posturl(), (data) => shown.push(data));
     assert.equal(shown.length, 3);
+    closestore(db);
+});
+
+test("local shows what has not reached the server yet", async () => {
+    const db = await replica();
+    assert.equal(await local(db, posturl()), undefined);
+    const posts = (await sync(db, posturl())).data;
+    await edit(db, posturl(), [...posts, { id: "tmp", title: "unsent" }]);
+    const doc = await local(db, posturl());
+    assert.deepEqual(doc.base, posts);
+    assert.ok(bytitle(doc.ours, "unsent"));
     closestore(db);
 });
 
