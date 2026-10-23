@@ -28,9 +28,9 @@ server. The server stays exactly as it is: if it speaks `GET`, `POST`,
 `PUT` and `DELETE`, it works.
 
 - **No backend changes.** No sync endpoint, no metadata, no new database.
-- **Nothing lost silently.** Edits to different fields always merge. Two
-  different edits to the same field are the only conflict, and you get
-  told about it.
+- **Nothing lost silently.** Edits to different fields always merge.
+  There are two kinds of conflict: two different edits to one field, and
+  an edit to something the other side deleted. You are told about both.
 - **Small.** Five dependency-free ES modules, about 400 lines.
 
 ## How it works
@@ -55,6 +55,14 @@ only, that side wins; changed the same way on both, nothing to do; changed
 differently on both, a **conflict**, settled by a resolver you supply. A
 missing record is a value like any other, so a deletion is a change and
 merges by the same rules.
+
+**Deleted while edited.** One conflict spans many records: one side
+deletes a post, or replaces an object with a value, while the other edits
+something inside it. Record by record the deletion would win unnoticed,
+because the post's own record looks untouched on the editing side. So
+these are settled first, a whole subtree at a time: the conflict is
+reported at the post, and the resolver keeps the deletion or the edited
+post.
 
 **Entities, not positions.** An array whose elements all carry a unique
 `id` is keyed by that id, so `/42/title` means post 42 wherever it sits.
@@ -147,8 +155,9 @@ const { data, conflicts } = await sync(db, url, resolve);
   request rejects with a `RemoteError` carrying the HTTP status.
 - **`resolve(conflict)`** receives `{ pointer, base, ours, theirs }`. Each
   side is a record (`{ kind: "value", value }`, `{ kind: "object" }` or
-  `{ kind: "list", order }`) or `undefined` for deleted, and `resolve`
-  returns the side to keep. The default keeps ours.
+  `{ kind: "list", order }`) or `undefined` for deleted. `resolve`
+  returns `conflict.ours` or `conflict.theirs`, the side to keep. The
+  default keeps ours.
 
 ## Limits
 
@@ -156,8 +165,6 @@ Each of these is a design choice worth knowing:
 
 - **Same-field edits need a resolver.** The default keeps the local edit
   and reports the server's value it replaced.
-- **Deleting an entity beats a concurrent edit inside it,** and that edit
-  is not reported.
 - **Collections have a small race window.** Entity writes carry no
   `If-Match`, because a collection listing has no per-entity `ETag`. A
   write landing between stitchback's fetch and its own can be

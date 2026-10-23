@@ -295,8 +295,17 @@ function conflictlist(device) {
 }
 
 function describe(conflict) {
-    return `${place(conflict.pointer)}: kept this device's ` +
-        `${shown(conflict.ours)}; the server had ${shown(conflict.theirs)}.`;
+    const where = place(conflict.pointer);
+    if (conflict.ours === undefined) {
+        return `${where}: deleted here while the server's copy changed; ` +
+            "kept the deletion.";
+    }
+    if (conflict.theirs === undefined) {
+        return `${where}: deleted on the server while edited here; ` +
+            "kept this device's version.";
+    }
+    return `${where}: kept this device's ${shown(conflict.ours)}; ` +
+        `the server had ${shown(conflict.theirs)}.`;
 }
 
 function place(pointer) {
@@ -306,7 +315,6 @@ function place(pointer) {
 }
 
 function shown(node) {
-    if (node === undefined) return "deletion";
     if (node.kind !== "value") return node.kind;
     const value = node.value;
     return typeof value === "string" ? `“${value}”` : JSON.stringify(value);

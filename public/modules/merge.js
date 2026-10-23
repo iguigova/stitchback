@@ -5,6 +5,11 @@ import { parentof, keyof, same, flatten, unflatten } from "./json.js";
 // A side that left a record as it was in base yields to the side that
 // changed it; two different changes to one record are a conflict, settled
 // by resolve. Absent records count as values, so a deletion is a change.
+//
+// One conflict spans many records: a side that removes or replaces a node
+// while the other changes something beneath it. The node's own record
+// looks untouched on the editing side, so record by record the removal
+// would win unreported. These are settled first, a subtree at a time.
 
 function keepours(conflict) {
     return conflict.ours;
@@ -16,16 +21,14 @@ function merge(base, ours, theirs, resolve = keepours) {
         ours: flatten(ours),
         theirs: flatten(theirs)
     };
-    const merged = new Map();
     const conflicts = [];
+    settleremovals(sides, resolve, conflicts);
+    const merged = new Map();
     for (const pointer of pointers(sides)) {
         const node = mergenode(sides, pointer, resolve, conflicts);
         if (node !== undefined) merged.set(pointer, node);
     }
-    return {
-        value: unflatten(merged),
-        conflicts: conflicts.filter((c) => reachable(merged, c.pointer))
-    };
+    return { value: unflatten(merged), conflicts: conflicts };
 }
 
 function pointers(sides) {
@@ -63,21 +66,70 @@ function ids(order) {
     return new Set(order.map(String));
 }
 
-// --- conflicts --------------------------------------------------------------
+// --- removals ---------------------------------------------------------------
 
-// A conflict under a node the merge dropped or replaced is moot.
-function reachable(records, pointer) {
-    if (pointer === "") return true;
-    const parent = records.get(parentof(pointer));
-    return parent !== undefined
-        && contains(parent, pointer)
-        && reachable(records, parentof(pointer));
+// Base is walked parents first, so once a node is settled every node
+// beneath it agrees on both sides, or differs only as one side's own edit.
+function settleremovals(sides, resolve, conflicts) {
+    for (const [pointer, node] of sides.base) {
+        if (node.kind === "value") continue;
+        for (const [mine, other] of [["ours", "theirs"], ["theirs", "ours"]]) {
+            if (!removes(sides, mine, other, pointer)) continue;
+            const conflict = {
+                pointer: pointer,
+                base: node,
+                ours: sides.ours.get(pointer),
+                theirs: sides.theirs.get(pointer)
+            };
+            conflicts.push(conflict);
+            const kept = resolve(conflict);
+            restore(sides, kept === conflict.ours ? "theirs" : "ours", pointer);
+        }
+    }
 }
 
-function contains(parent, pointer) {
-    if (parent.kind === "object") return true;
-    if (parent.kind === "list") return ids(parent.order).has(keyof(pointer));
-    return false;
+// mine removed or replaced the node at pointer, and other changed
+// something beneath it.
+function removes(sides, mine, other, pointer) {
+    const node = sides[mine].get(pointer);
+    const base = subtree(sides.base, pointer);
+    const theirs = subtree(sides[other], pointer);
+    return (node === undefined || node.kind !== sides.base.get(pointer).kind)
+        && !same(theirs, base)
+        && !same(theirs, subtree(sides[mine], pointer));
+}
+
+function subtree(records, pointer) {
+    const below = (p) => p === pointer || p.startsWith(`${pointer}/`);
+    return Object.fromEntries([...records].filter(([p]) => below(p)));
+}
+
+// Gives the losing side base's subtree back, so the merge that follows
+// sees only the winner's changes.
+function restore(sides, loser, pointer) {
+    const records = sides[loser];
+    for (const p of Object.keys(subtree(records, pointer))) records.delete(p);
+    for (const [p, node] of Object.entries(subtree(sides.base, pointer))) {
+        records.set(p, node);
+    }
+    if (pointer === "") return;
+    const parent = records.get(parentof(pointer));
+    const before = sides.base.get(parentof(pointer));
+    if (parent?.kind === "list" && before.kind === "list") {
+        const order = reinsert(parent.order, before.order, keyof(pointer));
+        records.set(parentof(pointer), { kind: "list", order: order });
+    }
+}
+
+// Puts id back after the nearest entity that preceded it in base, so a
+// side that only removed it ends up with base's order again.
+function reinsert(order, before, id) {
+    const present = ids(order);
+    if (present.has(id)) return order;
+    const at = before.findIndex((e) => String(e) === id);
+    const anchor = before.slice(0, at).findLast((e) => present.has(String(e)));
+    const index = order.findIndex((e) => String(e) === String(anchor)) + 1;
+    return [...order.slice(0, index), before[at], ...order.slice(index)];
 }
 
 export { merge, keepours };

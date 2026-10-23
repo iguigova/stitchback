@@ -52,8 +52,19 @@ function nodeof(value) {
     return { kind: "value", value: value };
 }
 
+// Deep equality of JSON values. Key order is not part of a value: a server
+// may return an object's keys in any order.
 function same(a, b) {
-    return JSON.stringify(a) === JSON.stringify(b);
+    if (a === b) return true;
+    if (!isnode(a) || !isnode(b)) return false;
+    if (Array.isArray(a) !== Array.isArray(b)) return false;
+    const keys = Object.keys(a);
+    return keys.length === Object.keys(b).length
+        && keys.every((k) => Object.hasOwn(b, k) && same(a[k], b[k]));
+}
+
+function isnode(value) {
+    return value !== null && typeof value === "object";
 }
 
 // --- flatten ----------------------------------------------------------------

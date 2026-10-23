@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-    parentof, keyof, iskeyedlist, flatten, unflatten
+    parentof, keyof, iskeyedlist, same, flatten, unflatten
 } from "../public/modules/json.js";
 
 const roundtrip = (value) => unflatten(flatten(value));
@@ -48,4 +48,12 @@ test("pointers escape slash and tilde", () => {
 
 test("an empty record set is no document", () => {
     assert.equal(unflatten(new Map()), undefined);
+});
+
+test("same compares values, not key order", () => {
+    assert.ok(same({ a: 1, b: [1, { c: 2 }] }, { b: [1, { c: 2 }], a: 1 }));
+    assert.ok(!same({ a: 1 }, { a: 1, b: 2 }));
+    assert.ok(!same([1], { 0: 1 }));
+    assert.ok(!same({ a: null }, { a: {} }));
+    assert.ok(!same({ a: 1 }, { b: 1 }));
 });
