@@ -1,4 +1,6 @@
-import { parentof, keyof, same, flatten, unflatten } from "./json.js";
+import {
+    parentof, keyof, same, flatten, unflatten, childrenof
+} from "./json.js";
 
 // Three-way merge, one record at a time. base is the last state both sides
 // agreed on, ours is the local copy, theirs is what the server holds now.
@@ -92,31 +94,57 @@ function settleremovals(sides, resolve, conflicts) {
 // something beneath it.
 function removes(sides, mine, other, pointer) {
     const node = sides[mine].get(pointer);
-    const base = subtree(sides.base, pointer);
+    if (node !== undefined && node.kind === sides.base.get(pointer).kind) {
+        return false;
+    }
     const theirs = subtree(sides[other], pointer);
-    return (node === undefined || node.kind !== sides.base.get(pointer).kind)
-        && !same(theirs, base)
+    return !same(theirs, subtree(sides.base, pointer))
         && !same(theirs, subtree(sides[mine], pointer));
 }
 
 function subtree(records, pointer) {
-    const below = (p) => p === pointer || p.startsWith(`${pointer}/`);
-    return Object.fromEntries([...records].filter(([p]) => below(p)));
+    const index = indexof(records);
+    const found = {};
+    const visit = (p) => {
+        found[p] = records.get(p);
+        for (const child of index.get(p) ?? []) visit(child);
+    };
+    if (records.has(pointer)) visit(pointer);
+    return found;
+}
+
+// Each side's parent-to-children index, built on first use.
+const indexes = new WeakMap();
+
+function indexof(records) {
+    if (!indexes.has(records)) indexes.set(records, childrenof(records));
+    return indexes.get(records);
 }
 
 // Gives the losing side base's subtree back, so the merge that follows
-// sees only the winner's changes.
+// sees only the winner's changes. The side's index follows along.
 function restore(sides, loser, pointer) {
     const records = sides[loser];
-    for (const p of Object.keys(subtree(records, pointer))) records.delete(p);
+    const index = indexof(records);
+    const had = records.has(pointer);
+    for (const p of Object.keys(subtree(records, pointer))) {
+        records.delete(p);
+        index.delete(p);
+    }
+    const before = indexof(sides.base);
     for (const [p, node] of Object.entries(subtree(sides.base, pointer))) {
         records.set(p, node);
+        if (before.has(p)) index.set(p, [...before.get(p)]);
     }
     if (pointer === "") return;
+    if (!had) {
+        const siblings = index.get(parentof(pointer)) ?? [];
+        index.set(parentof(pointer), [...siblings, pointer]);
+    }
     const parent = records.get(parentof(pointer));
-    const before = sides.base.get(parentof(pointer));
-    if (parent?.kind === "list" && before.kind === "list") {
-        const order = reinsert(parent.order, before.order, keyof(pointer));
+    const was = sides.base.get(parentof(pointer));
+    if (parent?.kind === "list" && was.kind === "list") {
+        const order = reinsert(parent.order, was.order, keyof(pointer));
         records.set(parentof(pointer), { kind: "list", order: order });
     }
 }

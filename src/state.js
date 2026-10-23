@@ -26,7 +26,7 @@ class StaleError extends Error {
 // --- reading and editing ----------------------------------------------------
 
 async function get(db, url, ondata) {
-    const doc = await load(db, url.href);
+    const doc = await local(db, url);
     if (doc !== undefined) ondata(doc.ours);
     const result = await sync(db, url);
     ondata(result.data);

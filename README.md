@@ -112,7 +112,7 @@ Checked against each project's documentation on 2026-10-22.
 | Replication protocol, e.g. RxDB | Pull and push handlers and a change stream ([RxDB replication](https://rxdb.info/replication.html)) | Resolved per document by a handler; the default keeps the server's state |
 | Sync engine, e.g. Zero | Its own sync service plus a push endpoint ([Zero mutators](https://zero.rocicorp.dev/docs/mutators)) | Server-authoritative mutators, re-run on the server |
 | CRDT library, e.g. Automerge or Yjs | A sync layer that speaks its format | Converge automatically, at the cost of a CRDT document format |
-| **stitchback** | **Nothing new** | **Merged field by field; same-field edits reported** |
+| **stitchback** | **Nothing new** | **Merged field by field; every conflict reported** |
 
 **Where it fits:** forms, settings, CRUD screens and field-work apps on an
 API you cannot or would rather not change, where edits are occasional and
@@ -203,7 +203,11 @@ Each of these is a design choice worth knowing:
   gap: the create is recorded only when its sync completes.
 - **Arrays without ids are atomic.** `["a", "b"]` merges as one value.
 - **The resource must round-trip.** What `GET` returns is what `PUT`
-  accepts, so views such as `?_embed=` are read-only for this purpose.
+  accepts, so views such as `?_embed=` are read-only for this purpose. In
+  a collection, each element of the listing must be what a `GET` of that
+  entity returns. A listing that shows fewer fields would be written back
+  short, so the guard read refuses it, and the sync rejects with a
+  `StaleError`, rather than delete those fields.
 - **Across tabs needs Web Locks.** Every current browser has them, but
   only on HTTPS or `localhost`. Elsewhere syncs run one at a time within
   each page only.
@@ -227,24 +231,25 @@ devices of the demo at it instead of the server in the page.
 
 The tests run on Node's built-in runner. They cover the flattening, every
 merge rule, the demo's server, and sync between replicas through a real
-json-server, including offline, deletion, conflicts, concurrent syncs,
-edits made during a sync and a server that enforces `ETag`. The run fails
+json-server: offline, deletion, conflicts, concurrent syncs, edits made
+during a sync, a create cut off by a failure, writes racing another
+client, servers with strong and weak `ETag`s, and autosync. The run fails
 below 100% line coverage of `src` and `demo`. Every push runs them on
 GitHub Actions under Node 22, which has no Web Locks, and Node 24, which
 has them; a green `main` publishes the live demo. Publishing a GitHub
 release tagged `v` plus the version in `package.json` publishes the
 package to npm.
 
-| Module                | Responsibility                                   |
-|-----------------------|--------------------------------------------------|
-| `src/index.js`        | the public API, typed by `src/index.d.ts`        |
-| `src/json.js`         | flatten a document into records and back         |
-| `src/merge.js`        | three-way merge of records                       |
-| `src/state.js`        | `get`, `local`, `edit`, `sync`, and writing back |
-| `src/storage.js`      | one IndexedDB store of `{ url, base, ours }`     |
-| `src/lock.js`         | one sync at a time, through Web Locks            |
-| `src/fetch.js`        | HTTP with `ETag` and typed errors                |
-| `index.html`, `demo/` | the live demo and its in-page REST server        |
+| Module                | Responsibility                               |
+|-----------------------|----------------------------------------------|
+| `src/index.js`        | the public API, typed by `src/index.d.ts`    |
+| `src/json.js`         | flatten a document into records and back     |
+| `src/merge.js`        | three-way merge of records                   |
+| `src/state.js`        | `get`, `local`, `edit`, `sync`, `autosync`   |
+| `src/storage.js`      | one IndexedDB store of `{ url, base, ours }` |
+| `src/lock.js`         | one sync at a time, through Web Locks        |
+| `src/fetch.js`        | HTTP with `ETag` and typed errors            |
+| `index.html`, `demo/` | the live demo and its in-page REST server    |
 
 ## License
 

@@ -86,10 +86,12 @@ function children(value) {
 // --- unflatten --------------------------------------------------------------
 
 function unflatten(records) {
-    return records.has("") ? build(records, index(records), "") : undefined;
+    if (!records.has("")) return undefined;
+    return build(records, childrenof(records), "");
 }
 
-function index(records) {
+// Maps each pointer to the pointers of its children.
+function childrenof(records) {
     const byparent = new Map();
     for (const pointer of records.keys()) {
         if (pointer === "") continue;
@@ -121,5 +123,6 @@ function buildlist(records, byparent, pointer) {
 }
 
 export {
-    parentof, keyof, isentity, iskeyedlist, same, flatten, unflatten
+    parentof, keyof, isentity, iskeyedlist, same, flatten, unflatten,
+    childrenof
 };

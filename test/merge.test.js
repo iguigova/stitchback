@@ -105,6 +105,16 @@ test("an entity removed first in the list is restored first", () => {
     assert.deepEqual(result.value, theirs);
 });
 
+test("several entities edited and removed are each settled", () => {
+    const base = [1, 2, 3, 4, 5].map((id) => ({ id: id, t: "a" }));
+    const theirs = base.map((e) => e.id % 2 ? { ...e, t: "b" } : e);
+    const ours = base.filter((e) => e.id === 2 || e.id === 4);
+    const kept = merge(base, ours, theirs);
+    assert.deepEqual(kept.conflicts.map((c) => c.pointer), ["/1", "/3", "/5"]);
+    assert.deepEqual(kept.value, ours);
+    assert.deepEqual(merge(base, ours, theirs, keeptheirs).value, theirs);
+});
+
 test("a removal nobody edited against merges silently", () => {
     const base = [{ id: 1, t: "a" }, { id: 2 }];
     const result = merge(base, [{ id: 2 }], base);
