@@ -191,6 +191,80 @@ test("an edit made while a sync runs is kept and synced next", async () => {
     closestore(db);
 });
 
+test("a create that went through before a sync failed is not repeated",
+    async () => {
+        const db = await replica();
+        const posts = (await sync(db, posturl())).data;
+        const edited = posts.map((p) => ({ ...p, title: `${p.title}!` }));
+        const added = { id: "tmp", title: "posted once" };
+        await edit(db, posturl(), [...edited, added]);
+        await assert.rejects(offlineafterpost(() => sync(db, posturl())),
+            TypeError);
+        const result = await sync(db, posturl());
+        const copies = result.data.filter((p) => p.title === "posted once");
+        assert.equal(copies.length, 1);
+        assert.notEqual(copies[0].id, "tmp");
+        closestore(db);
+    });
+
+test("an edit to a new entity made while it is posted is kept", async () => {
+    const db = await replica();
+    const posts = (await sync(db, posturl())).data;
+    const added = { id: "tmp", title: "draft" };
+    await edit(db, posturl(), [...posts, added]);
+    const later = [...posts, { ...added, title: "final" }];
+    const result = await duringwrite(() => edit(db, posturl(), later),
+        () => sync(db, posturl()));
+    const mine = bytitle(result.data, "final");
+    assert.ok(mine && mine.id !== "tmp");
+    assert.equal(bytitle(result.data, "draft"), undefined);
+    const next = (await sync(db, posturl())).data;
+    assert.equal(byid(next, mine.id).title, "final");
+    closestore(db);
+});
+
+test("a create answered without a body still settles", async () => {
+    const db = await replica();
+    const posts = (await sync(db, posturl())).data;
+    await edit(db, posturl(), [...posts, { id: "tmp", title: "no body" }]);
+    const result = await withoutbody(() => sync(db, posturl()));
+    const copies = result.data.filter((p) => p.title === "no body");
+    assert.equal(copies.length, 1);
+    assert.notEqual(copies[0].id, "tmp");
+    closestore(db);
+});
+
+// Strips the body from every response to a POST made by work.
+async function withoutbody(work) {
+    const realfetch = globalThis.fetch;
+    globalThis.fetch = async (url, init) => {
+        const response = await realfetch(url, init);
+        if (init?.method !== "POST") return response;
+        return new Response(null, { status: response.status });
+    };
+    try {
+        return await work();
+    } finally {
+        globalThis.fetch = realfetch;
+    }
+}
+
+// Lets work's first POST through, then fails every request as offline.
+async function offlineafterpost(work) {
+    const realfetch = globalThis.fetch;
+    let posted = false;
+    globalThis.fetch = async (url, init) => {
+        if (posted) throw new TypeError("fetch failed");
+        posted = init?.method === "POST";
+        return realfetch(url, init);
+    };
+    try {
+        return await work();
+    } finally {
+        globalThis.fetch = realfetch;
+    }
+}
+
 // Runs during() when work sends its first write, before the write leaves.
 async function duringwrite(during, work) {
     const realfetch = globalThis.fetch;

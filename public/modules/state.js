@@ -1,5 +1,5 @@
 import { load, update } from "./storage.js";
-import { iskeyedlist, same } from "./json.js";
+import { isentity, iskeyedlist, same } from "./json.js";
 import { merge, keepours } from "./merge.js";
 import { exclusive } from "./lock.js";
 import {
@@ -58,9 +58,14 @@ async function synconce(db, url, resolve) {
     const doc = await load(db, url.href) ?? unedited(url, remote.data);
     const result = merge(doc.base, doc.ours, remote.data, resolve);
     const writes = requests(url, remote, result.value);
-    for (const request of writes) await sendremote(request);
-    const settled = writes.length > 0 ? await getremote(url) : remote;
     const late = [];
+    for (const request of writes) {
+        const response = await sendremote(request);
+        if (request.method === "POST") {
+            late.push(...await adopt(db, url, request.data, response, resolve));
+        }
+    }
+    const settled = writes.length > 0 ? await getremote(url) : remote;
     const saved = await update(db, url.href, (current) => {
         if (current === undefined) return unedited(url, settled.data);
         const edits = merge(doc.ours, current.ours, settled.data, resolve);
@@ -72,6 +77,27 @@ async function synconce(db, url, resolve) {
 
 function unedited(url, data) {
     return { url: url.href, base: data, ours: data };
+}
+
+// The server has created an entity, under an id it chose. That is
+// recorded at once, so a sync that fails later does not post it again:
+// base gains the server's copy, and the local entity takes its id along
+// with any edit made to it since it was posted.
+async function adopt(db, url, posted, response, resolve) {
+    const created = await response.json().catch(() => undefined);
+    if (!isentity(created)) return [];
+    const conflicts = [];
+    await update(db, url.href, (doc) => {
+        const rename = (e) => {
+            if (String(e.id) !== String(posted.id)) return e;
+            const result = merge(posted, e, created, resolve);
+            conflicts.push(...result.conflicts);
+            return result.value;
+        };
+        const base = [...doc.base, created];
+        return { ...doc, base: base, ours: doc.ours.map(rename) };
+    });
+    return conflicts;
 }
 
 // --- writing back -----------------------------------------------------------

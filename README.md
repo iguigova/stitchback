@@ -74,8 +74,10 @@ sent, in the shape REST expects. A collection is written entity by entity:
 `POST` added, `PUT` changed, `DELETE` removed. Anything else is one `PUT`,
 carrying `If-Match` when the server sent an `ETag`; a `412` means someone
 wrote first, so stitchback fetches, re-merges and retries, up to three
-attempts. Afterwards a fresh `GET` becomes the new `base`, which is also
-how ids the server assigns replace the placeholders used offline.
+attempts. Each created entity is recorded the moment the server answers
+with it, under the id the server chose, so a sync that fails after a
+create does not post it again; [Limits](#limits) names the one gap.
+Afterwards a fresh `GET` becomes the new `base`.
 
 ## The theory, briefly
 
@@ -171,8 +173,11 @@ Each of these is a design choice worth knowing:
   `If-Match`, because a collection listing has no per-entity `ETag`. A
   write landing between stitchback's fetch and its own can be
   overwritten. Single resources with an `ETag` are fully guarded.
-- **Creates are not idempotent when the server assigns ids.** If a sync
-  fails after a `POST` succeeded, the next sync can post the entity again.
+- **A create cut off mid-answer can repeat.** If the connection drops
+  after the server accepted a `POST` but before its answer arrived,
+  stitchback cannot tell, and the next sync posts the entity again. A
+  server that answers a `POST` without the created entity leaves a wider
+  gap: the create is recorded only when its sync completes.
 - **Arrays without ids are atomic.** `["a", "b"]` merges as one value.
 - **The resource must round-trip.** What `GET` returns is what `PUT`
   accepts, so views such as `?_embed=` are read-only for this purpose.

@@ -121,5 +121,5 @@ function buildlist(records, byparent, pointer) {
 }
 
 export {
-    parentof, keyof, iskeyedlist, same, flatten, unflatten
+    parentof, keyof, isentity, iskeyedlist, same, flatten, unflatten
 };
