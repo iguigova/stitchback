@@ -9,7 +9,7 @@ import { join } from "node:path";
 import {
     openstore, closestore, load, update
 } from "../public/modules/storage.js";
-import { get, edit, sync } from "../public/modules/state.js";
+import { get, edit, sync, StaleError } from "../public/modules/state.js";
 import { RemoteError } from "../public/modules/fetch.js";
 
 // Two replicas sync through a real json-server; a small server of our own
@@ -63,6 +63,53 @@ function posturl() {
 
 const byid = (posts, id) => posts.find((p) => p.id === id);
 const bytitle = (posts, title) => posts.find((p) => p.title === title);
+
+// --- intercepting fetch ----------------------------------------------------
+
+// Runs work with every fetch call going through handle(realfetch, url,
+// init) instead.
+async function intercept(handle, work) {
+    const realfetch = globalThis.fetch;
+    globalThis.fetch = (url, init) => handle(realfetch, url, init);
+    try {
+        return await work();
+    } finally {
+        globalThis.fetch = realfetch;
+    }
+}
+
+// Runs during() once, just before the first request that matches leaves.
+function beforesend(matches, during, work) {
+    let pending = true;
+    return intercept(async (realfetch, url, init) => {
+        if (pending && matches(new URL(url), init?.method ?? "GET")) {
+            pending = false;
+            await during();
+        }
+        return realfetch(url, init);
+    }, work);
+}
+
+const write = (url, method) => method !== "GET";
+
+// Lets the first POST through, then fails every request as offline.
+function offlineafterpost(work) {
+    let posted = false;
+    return intercept(async (realfetch, url, init) => {
+        if (posted) throw new TypeError("fetch failed");
+        posted = init?.method === "POST";
+        return realfetch(url, init);
+    }, work);
+}
+
+// Strips the body from every response to a POST.
+function withoutbody(work) {
+    return intercept(async (realfetch, url, init) => {
+        const response = await realfetch(url, init);
+        if (init?.method !== "POST") return response;
+        return new Response(null, { status: response.status });
+    }, work);
+}
 
 // --- json-server ------------------------------------------------------------
 
@@ -157,7 +204,8 @@ test("offline, sync fails and the local edit is kept", async () => {
 test("a refused write raises with its status", async () => {
     const db = await replica();
     const missing = new URL(`${origin}/nothing-here`);
-    await assert.rejects(sync(db, missing), (error) => error.status === 404);
+    await assert.rejects(sync(db, missing),
+        (error) => error instanceof RemoteError && error.status === 404);
     closestore(db);
 });
 
@@ -179,7 +227,7 @@ test("an edit made while a sync runs is kept and synced next", async () => {
     const retitled = posts.map((p) => p === first ? { ...p, title: "T" } : p);
     await edit(db, posturl(), retitled);
     const late = retitled.map((p) => p.id === "1" ? { ...p, author: "L" } : p);
-    const result = await duringwrite(() => edit(db, posturl(), late),
+    const result = await beforesend(write, () => edit(db, posturl(), late),
         () => sync(db, posturl()));
     assert.deepEqual(result.conflicts, []);
     assert.equal(byid(result.data, "1").author, "L");
@@ -213,7 +261,7 @@ test("an edit to a new entity made while it is posted is kept", async () => {
     const added = { id: "tmp", title: "draft" };
     await edit(db, posturl(), [...posts, added]);
     const later = [...posts, { ...added, title: "final" }];
-    const result = await duringwrite(() => edit(db, posturl(), later),
+    const result = await beforesend(write, () => edit(db, posturl(), later),
         () => sync(db, posturl()));
     const mine = bytitle(result.data, "final");
     assert.ok(mine && mine.id !== "tmp");
@@ -234,73 +282,68 @@ test("a create answered without a body still settles", async () => {
     closestore(db);
 });
 
-// Strips the body from every response to a POST made by work.
-async function withoutbody(work) {
-    const realfetch = globalThis.fetch;
-    globalThis.fetch = async (url, init) => {
-        const response = await realfetch(url, init);
-        if (init?.method !== "POST") return response;
-        return new Response(null, { status: response.status });
-    };
-    try {
-        return await work();
-    } finally {
-        globalThis.fetch = realfetch;
-    }
-}
+test("an entity changed after the sync read it is merged, not overwritten",
+    async () => {
+        const db = await replica();
+        const posts = (await sync(db, posturl())).data;
+        const first = byid(posts, "1");
+        const mine = posts.map((p) => p === first ? { ...p, title: "M" } : p);
+        await edit(db, posturl(), mine);
+        const other = () => put(`${origin}/posts/1`, { ...first, author: "O" });
+        const touches = (url) => url.pathname === "/posts/1";
+        const result = await beforesend(touches, other,
+            () => sync(db, posturl()));
+        const server = await (await fetch(`${origin}/posts/1`)).json();
+        assert.deepEqual([server.title, server.author], ["M", "O"]);
+        assert.deepEqual(byid(result.data, "1"), server);
+        closestore(db);
+    });
 
-// Lets work's first POST through, then fails every request as offline.
-async function offlineafterpost(work) {
-    const realfetch = globalThis.fetch;
-    let posted = false;
-    globalThis.fetch = async (url, init) => {
-        if (posted) throw new TypeError("fetch failed");
-        posted = init?.method === "POST";
-        return realfetch(url, init);
-    };
-    try {
-        return await work();
-    } finally {
-        globalThis.fetch = realfetch;
-    }
-}
+test("an entity deleted after the sync read it is a conflict", async () => {
+    const db = await replica();
+    const posts = (await sync(db, posturl())).data;
+    const first = byid(posts, "1");
+    const mine = posts.map((p) => p === first ? { ...p, title: "kept" } : p);
+    await edit(db, posturl(), mine);
+    const other = () => fetch(`${origin}/posts/1`, { method: "DELETE" });
+    const touches = (url) => url.pathname === "/posts/1";
+    const result = await beforesend(touches, other,
+        () => sync(db, posturl()));
+    assert.deepEqual(result.conflicts.map((c) => c.pointer), ["/1"]);
+    assert.ok(bytitle(result.data, "kept"));
+    closestore(db);
+});
 
-// Runs during() when work sends its first write, before the write leaves.
-async function duringwrite(during, work) {
-    const realfetch = globalThis.fetch;
-    globalThis.fetch = async (url, init) => {
-        if ((init?.method ?? "GET") !== "GET") {
-            globalThis.fetch = realfetch;
-            await during();
-        }
-        return realfetch(url, init);
-    };
-    try {
-        return await work();
-    } finally {
-        globalThis.fetch = realfetch;
-    }
+function put(url, data) {
+    return fetch(url, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data)
+    });
 }
 
 // --- ETag -------------------------------------------------------------------
 
 // Holds one document. A PUT whose If-Match is stale is refused with 412;
-// `interfere` lets a concurrent writer change the document first.
-function etagserver(interfere) {
+// `interfere` lets a concurrent writer change the document first. With
+// weak tags, If-Match can never match, as RFC 9110 compares it strongly,
+// so only an unconditional PUT succeeds.
+function etagserver(interfere, weak = false) {
     let version = 1;
     let doc = { a: 1, b: 1 };
+    const tag = () => weak ? `W/"${version}"` : `"${version}"`;
     const http = createServer(async (request, response) => {
         if (request.method === "PUT") {
             if (interfere()) { version += 1; doc = { ...doc, b: version }; }
-            const current = `"${version}"`;
-            if (request.headers["if-match"] !== current) {
+            const ifmatch = request.headers["if-match"];
+            if (weak ? ifmatch !== undefined : ifmatch !== tag()) {
                 response.writeHead(412).end();
                 return;
             }
             doc = JSON.parse(await body(request));
             version += 1;
         }
-        response.writeHead(200, { ETag: `"${version}"` });
+        response.writeHead(200, { ETag: tag() });
         response.end(JSON.stringify(doc));
     });
     return new Promise((resolve) => http.listen(0, () => resolve(http)));
@@ -312,8 +355,8 @@ async function body(request) {
     return text;
 }
 
-async function syncagainst(interfere) {
-    const http = await etagserver(interfere);
+async function syncagainst(interfere, weak) {
+    const http = await etagserver(interfere, weak);
     const url = new URL(`http://localhost:${http.address().port}/doc`);
     const db = await replica();
     await sync(db, url);
@@ -332,10 +375,13 @@ test("a stale write is retried against the newer state", async () => {
     assert.deepEqual(result.data, { a: 2, b: 2 });
 });
 
+test("a weak ETag is not sent as If-Match", async () => {
+    const result = await syncagainst(() => false, true);
+    assert.deepEqual(result.data, { a: 2, b: 1 });
+});
+
 test("a write that stays stale gives up", async () => {
-    await assert.rejects(
-        syncagainst(() => true),
-        (error) => error instanceof RemoteError && error.status === 412);
+    await assert.rejects(syncagainst(() => true), StaleError);
 });
 
 // --- storage ----------------------------------------------------------------

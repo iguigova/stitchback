@@ -2,6 +2,8 @@
 // behaves like a plain one and knows nothing about sync: a collection
 // answers GET and POST, an entity in it answers GET, PUT and DELETE, any
 // other top-level value answers GET and PUT, and POST assigns the id.
+// Every successful answer carries a strong ETag of its body, and a PUT or
+// DELETE whose If-Match names an older one is refused with 412.
 
 function createserver(data) {
     const state = structuredClone(data);
@@ -16,11 +18,14 @@ async function respond(state, url, init) {
     const result = handle(state, {
         method: init.method ?? "GET",
         path: new URL(url).pathname,
+        ifmatch: new Headers(init.headers).get("If-Match"),
         body: init.body === undefined ? undefined : JSON.parse(init.body)
     });
+    const headers = { "Content-Type": "application/json" };
+    if (result.status < 300) headers.ETag = etag(result.body);
     return new Response(JSON.stringify(result.body), {
         status: result.status,
-        headers: { "Content-Type": "application/json" }
+        headers: headers
     });
 }
 
@@ -47,6 +52,7 @@ function entity(entities, id, request) {
     const index = entities.findIndex((e) => String(e.id) === id);
     if (index === -1) return reply(404);
     if (request.method === "GET") return reply(200, entities[index]);
+    if (stale(request, entities[index])) return reply(412);
     if (request.method === "PUT") {
         entities[index] = { ...request.body, id: entities[index].id };
         return reply(200, entities[index]);
@@ -59,12 +65,26 @@ function entity(entities, id, request) {
 function single(state, name, request) {
     if (request.method === "GET") return reply(200, state[name]);
     if (request.method !== "PUT") return reply(405);
+    if (stale(request, state[name])) return reply(412);
     state[name] = request.body;
     return reply(200, state[name]);
 }
 
 function reply(status, body = {}) {
     return { status: status, body: structuredClone(body) };
+}
+
+function stale(request, current) {
+    return request.ifmatch !== null && request.ifmatch !== etag(current);
+}
+
+// Equal JSON, equal tag: a 32-bit FNV-1a hash of the serialized value.
+function etag(value) {
+    let hash = 0x811c9dc5;
+    for (const char of JSON.stringify(value)) {
+        hash = Math.imul(hash ^ char.codePointAt(0), 0x01000193) >>> 0;
+    }
+    return `"${hash.toString(16)}"`;
 }
 
 function newid() {

@@ -71,9 +71,12 @@ sides merge as sets. Any other array is a single value.
 
 **Writing back.** Only the difference between the merge and `theirs` is
 sent, in the shape REST expects. A collection is written entity by entity:
-`POST` added, `PUT` changed, `DELETE` removed. Anything else is one `PUT`,
-carrying `If-Match` when the server sent an `ETag`; a `412` means someone
-wrote first, so stitchback fetches, re-merges and retries, up to three
+`POST` added, `PUT` changed, `DELETE` removed. A listing has no `ETag` per
+entity, so each entity is read again just before its `PUT` or `DELETE`:
+if it changed since the listing, or is gone, someone wrote first. Anything
+else is one `PUT`. Every `PUT` and `DELETE` carries `If-Match` when the
+server sent a strong `ETag`, so a `412` also means someone wrote first.
+Either way stitchback fetches, re-merges and retries, up to three
 attempts. Each created entity is recorded the moment the server answers
 with it, under the id the server chose, so a sync that fails after a
 create does not post it again; [Limits](#limits) names the one gap.
@@ -153,8 +156,10 @@ const { data, conflicts } = await sync(db, url, resolve);
   have been fetched once, so there is a `base` to merge against.
 - **`sync(db, url, resolve)`** merges and writes back. It returns the
   local copy after the sync and the conflicts it settled. Offline, it
-  rejects with fetch's `TypeError` and leaves the local copy untouched. A
-  refused request rejects with a `RemoteError` carrying the HTTP status.
+  rejects with fetch's `TypeError` and leaves the local copy untouched. If
+  the server keeps changing under it for three attempts, it rejects with
+  a `StaleError`. Any other refused request rejects with a `RemoteError`
+  carrying the HTTP status.
   Call it whenever you like: syncs of one resource run one at a time,
   across tabs too, and an edit made while one runs is kept for the next.
 - **`resolve(conflict)`** receives `{ pointer, base, ours, theirs }`. Each
@@ -169,10 +174,14 @@ Each of these is a design choice worth knowing:
 
 - **Same-field edits need a resolver.** The default keeps the local edit
   and reports the server's value it replaced.
-- **Collections have a small race window.** Entity writes carry no
-  `If-Match`, because a collection listing has no per-entity `ETag`. A
-  write landing between stitchback's fetch and its own can be
-  overwritten. Single resources with an `ETag` are fully guarded.
+- **Without strong `ETag`s, a small race window remains.** A write that
+  lands between stitchback's last read of an entity and its own write
+  can be overwritten. A server that sends strong `ETag`s closes it. A
+  weak one, `W/"…"`, cannot: `If-Match` compares strongly ([RFC 9110
+  §13.1.1](https://www.rfc-editor.org/rfc/rfc9110#section-13.1.1)), so
+  stitchback does not send it.
+- **Each changed or deleted entity costs one extra `GET`,** the read
+  that guards its write.
 - **A create cut off mid-answer can repeat.** If the connection drops
   after the server accepted a `POST` but before its answer arrived,
   stitchback cannot tell, and the next sync posts the entity again. A

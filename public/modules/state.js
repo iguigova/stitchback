@@ -3,7 +3,7 @@ import { isentity, iskeyedlist, same } from "./json.js";
 import { merge, keepours } from "./merge.js";
 import { exclusive } from "./lock.js";
 import {
-    RemoteError, preconditionfailed, getremote, sendremote
+    RemoteError, notfound, preconditionfailed, getremote, sendremote
 } from "./fetch.js";
 
 // A resource is stored as { url, base, ours }: base is the server state at
@@ -13,6 +13,15 @@ import {
 // resource run one at a time; edits may land while one runs.
 
 const attempts = 3;
+
+// The server changed between the sync's read and its write, and that
+// change was caught before it could be overwritten: by the server, as a
+// 412, or by guard.
+class StaleError extends Error {
+    constructor(url) {
+        super(`${url} changed while syncing`);
+    }
+}
 
 // --- reading and editing ----------------------------------------------------
 
@@ -48,9 +57,11 @@ function attempt(db, url, resolve, count) {
 }
 
 function retryable(error, count) {
-    return error instanceof RemoteError
-        && error.status === preconditionfailed
-        && count < attempts;
+    return error instanceof StaleError && count < attempts;
+}
+
+function refused(error, status) {
+    return error instanceof RemoteError && error.status === status;
 }
 
 async function synconce(db, url, resolve) {
@@ -60,7 +71,7 @@ async function synconce(db, url, resolve) {
     const writes = requests(url, remote, result.value);
     const late = [];
     for (const request of writes) {
-        const response = await sendremote(request);
+        const response = await send(request);
         if (request.method === "POST") {
             late.push(...await adopt(db, url, request.data, response, resolve));
         }
@@ -112,21 +123,46 @@ function requests(url, remote, merged) {
     return [{ method: "PUT", url: url, data: merged, etag: remote.etag }];
 }
 
+// A PUT or DELETE carries the entity as the sync read it, for guard.
 function entityrequests(url, theirs, merged) {
     const before = byid(theirs);
     const after = byid(merged);
     const added = merged.filter((e) => !before.has(String(e.id)));
     const changed = merged.filter((e) => modified(before, e));
     const removed = theirs.filter((e) => !after.has(String(e.id)));
+    const read = (e) => before.get(String(e.id));
     return [
         ...added.map((e) => request("POST", collection(url), e)),
-        ...changed.map((e) => request("PUT", entity(url, e), e)),
-        ...removed.map((e) => request("DELETE", entity(url, e)))
+        ...changed.map((e) => request("PUT", entity(url, e), e, read(e))),
+        ...removed.map((e) => request("DELETE", entity(url, e), undefined, e))
     ];
 }
 
-function request(method, url, data) {
-    return { method: method, url: url, data: data };
+function request(method, url, data, read) {
+    return { method: method, url: url, data: data, read: read };
+}
+
+async function send(request) {
+    const guarded = await guard(request);
+    return sendremote(guarded).catch(stale(request, preconditionfailed));
+}
+
+// A collection listing carries no ETag per entity, so the entity is read
+// again just before it is written. If it changed since the listing, or is
+// gone, the sync starts over; if not, its ETag guards the write.
+async function guard(request) {
+    if (request.read === undefined) return request;
+    const current = await getremote(request.url)
+        .catch(stale(request, notfound));
+    if (!same(current.data, request.read)) throw new StaleError(request.url);
+    return { ...request, etag: current.etag };
+}
+
+// Turns a refusal with status into a StaleError.
+function stale(request, status) {
+    return (error) => {
+        throw refused(error, status) ? new StaleError(request.url) : error;
+    };
 }
 
 function byid(entities) {
@@ -146,4 +182,4 @@ function entity(url, e) {
     return new URL(`${base}/${encodeURIComponent(e.id)}`, url.origin);
 }
 
-export { get, edit, sync };
+export { get, edit, sync, StaleError };

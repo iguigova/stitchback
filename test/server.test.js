@@ -14,11 +14,15 @@ const seedfile = join(import.meta.dirname, "../public/db.json");
 const seed = JSON.parse(await readFile(seedfile, "utf8"));
 const origin = "https://demo.test";
 
-async function call(server, method, path, body) {
-    const init = { method: method };
+async function call(server, method, path, body, headers = {}) {
+    const init = { method: method, headers: headers };
     if (body !== undefined) init.body = JSON.stringify(body);
     const response = await server.fetch(`${origin}${path}`, init);
-    return { status: response.status, body: await response.json() };
+    return {
+        status: response.status,
+        etag: response.headers.get("ETag"),
+        body: await response.json()
+    };
 }
 
 test("a collection lists and creates, assigning the id", async () => {
@@ -51,6 +55,21 @@ test("a single resource reads and replaces", async () => {
     assert.equal((await call(server, "DELETE", "/profile")).status, 405);
 });
 
+test("a write naming an older ETag is refused", async () => {
+    const server = createserver(seed);
+    for (const path of ["/posts/1", "/profile"]) {
+        const read = await call(server, "GET", path);
+        assert.match(read.etag, /^"[0-9a-f]+"$/);
+        const stale = { "If-Match": "\"0\"" };
+        const fresh = { "If-Match": read.etag };
+        assert.equal((await call(server, "PUT", path, {}, stale)).status, 412);
+        assert.equal((await call(server, "PUT", path, {}, fresh)).status, 200);
+    }
+    const gone = await call(server, "DELETE", "/posts/1", undefined,
+        { "If-Match": "\"0\"" });
+    assert.equal(gone.status, 412);
+});
+
 test("unknown paths are not found", async () => {
     const server = createserver(seed);
     for (const path of ["/nope", "/toString", "/profile/1", "/posts/1/x"]) {
@@ -65,17 +84,27 @@ test("the server never shares its state with a caller", async () => {
     assert.equal(server.snapshot().posts.length, seed.posts.length);
 });
 
+// Runs work with fetch answered by server, through handle when given.
+async function through(server, work, handle = server.fetch) {
+    const realfetch = globalThis.fetch;
+    globalThis.fetch = handle;
+    try {
+        return await work();
+    } finally {
+        globalThis.fetch = realfetch;
+    }
+}
+
+const url = new URL(`${origin}/posts`);
+const retitle = (p) => p.id === "1" ? { ...p, title: "A" } : p;
+const reauthor = (p) => p.id === "1" ? { ...p, author: "B" } : p;
+
 test("two replicas merge their offline edits through it", async () => {
     const server = createserver(seed);
-    const realfetch = globalThis.fetch;
-    globalThis.fetch = server.fetch;
-    try {
-        const url = new URL(`${origin}/posts`);
+    await through(server, async () => {
         const [a, b] = [await openstore("demo-a"), await openstore("demo-b")];
         const [posts] = [(await sync(a, url)).data];
         await sync(b, url);
-        const retitle = (p) => p.id === "1" ? { ...p, title: "A" } : p;
-        const reauthor = (p) => p.id === "1" ? { ...p, author: "B" } : p;
         await edit(a, url, posts.map(retitle));
         await edit(b, url, posts.map(reauthor));
         await sync(a, url);
@@ -84,7 +113,27 @@ test("two replicas merge their offline edits through it", async () => {
         assert.equal(merged.author, "B");
         closestore(a);
         closestore(b);
-    } finally {
-        globalThis.fetch = realfetch;
-    }
+    });
+});
+
+test("a write racing another is refused by its ETag and merged", async () => {
+    const server = createserver(seed);
+    let raced = false;
+    const racing = async (target, init) => {
+        if (!raced && init.method === "PUT") {
+            raced = true;
+            const other = reauthor(server.snapshot().posts[0]);
+            await call(server, "PUT", "/posts/1", other);
+        }
+        return server.fetch(target, init);
+    };
+    await through(server, async () => {
+        const db = await openstore("demo-race");
+        const posts = (await sync(db, url)).data;
+        await edit(db, url, posts.map(retitle));
+        const merged = (await sync(db, url)).data[0];
+        assert.deepEqual([merged.title, merged.author], ["A", "B"]);
+        closestore(db);
+    }, racing);
+    assert.deepEqual(server.snapshot().posts[0].author, "B");
 });

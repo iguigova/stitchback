@@ -9,6 +9,7 @@ class RemoteError extends Error {
     }
 }
 
+const notfound = 404;
 const preconditionfailed = 412;
 
 async function getremote(url) {
@@ -30,9 +31,12 @@ async function call(method, url, data, etag) {
     return response;
 }
 
+// If-Match is compared strongly (RFC 9110, section 13.1.1), so a weak
+// ETag can never match and is not sent.
 function headers(etag) {
     const base = { "Content-Type": "application/json" };
-    return etag ? { ...base, "If-Match": etag } : base;
+    const strong = etag && !etag.startsWith("W/");
+    return strong ? { ...base, "If-Match": etag } : base;
 }
 
-export { RemoteError, preconditionfailed, getremote, sendremote };
+export { RemoteError, notfound, preconditionfailed, getremote, sendremote };
