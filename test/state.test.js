@@ -24,7 +24,7 @@ let origin;
 
 before(async () => {
     const port = await freeport();
-    const data = join(await mkdtemp(join(tmpdir(), "localstate-")), "db.json");
+    const data = join(await mkdtemp(join(tmpdir(), "stitchback-")), "db.json");
     await copyFile(seed, data);
     server = spawn(jsonserver, [data, "--port", String(port)]);
     origin = `http://localhost:${port}`;

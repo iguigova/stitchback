@@ -1,5 +1,5 @@
 {
-  "name": "localstate-poc",
+  "name": "stitchback",
   "version": "1.0.0",
   "description": "Offline-first, field-level three-way merge for REST APIs you don't control",
   "license": "MIT",

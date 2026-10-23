@@ -7,9 +7,9 @@ import { createserver } from "./demo/server.js";
 // database, and one plain REST server. The server runs in this page unless
 // ?api= names a real one, such as ?api=http://localhost:3000/posts.
 
-const demoorigin = "https://server.localstate.demo";
+const demoorigin = "https://server.stitchback.demo";
 const latency = 300;
-const savedkey = "localstate-demo";
+const savedkey = "stitchback-demo";
 const loglength = 8;
 
 const seed = await (await fetch("db.json")).json();
@@ -357,7 +357,7 @@ function score() {
     return el("p", { class: "score", role: "status" },
         el("strong", {}, String(rescued)),
         ` ${edits} from the other device that writing a copy back whole ` +
-        "would have erased. localstate merged them.");
+        "would have erased. stitchback merged them.");
 }
 
 // Updates the page in place, so a field being typed in keeps its focus,
@@ -433,7 +433,7 @@ function onclick(device, event) {
 async function reset() {
     for (const device of devices) {
         closestore(device.db);
-        await removedatabase(`localstate-demo-${device.key}`);
+        await removedatabase(`stitchback-demo-${device.key}`);
     }
     try {
         localStorage.removeItem(savedkey);
@@ -453,7 +453,7 @@ function removedatabase(name) {
 }
 
 for (const device of devices) {
-    device.db = await openstore(`localstate-demo-${device.key}`);
+    device.db = await openstore(`stitchback-demo-${device.key}`);
     device.online = saved.online?.[device.key] ?? true;
     device.conflicts = [];
     device.note = "";

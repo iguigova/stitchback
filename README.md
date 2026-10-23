@@ -1,10 +1,10 @@
-# localstate
+# stitchback
 
 **Offline-first for the REST API you already have.**
 
-[![tests](https://github.com/iguigova/localstate-poc/actions/workflows/pages.yml/badge.svg)](https://github.com/iguigova/localstate-poc/actions/workflows/pages.yml)
+[![tests](https://github.com/iguigova/stitchback/actions/workflows/pages.yml/badge.svg)](https://github.com/iguigova/stitchback/actions/workflows/pages.yml)
 
-### ▶ [Try the live demo](https://iguigova.github.io/localstate-poc/)
+### ▶ [Try the live demo](https://iguigova.github.io/stitchback/)
 
 Two devices and one server, in your browser. Take a device offline, edit
 on both, bring it back, and watch every edit survive.
@@ -20,11 +20,12 @@ most apps do one of two things:
   protocol or database with it. That is a rewrite, and not an option when
   the API belongs to someone else.
 
-localstate is the third way. It keeps a local copy of any JSON resource,
-lets people edit it with or without a connection, and on reconnect merges
-their edits **field by field** with what changed on the server. The server
-stays exactly as it is: if it speaks `GET`, `POST`, `PUT` and `DELETE`, it
-works.
+stitchback is the third way, and its name is what it does: it stitches
+offline edits back into the server's state. It keeps a local copy of any
+JSON resource, lets people edit it with or without a connection, and on
+reconnect merges their edits **field by field** with what changed on the
+server. The server stays exactly as it is: if it speaks `GET`, `POST`,
+`PUT` and `DELETE`, it works.
 
 - **No backend changes.** No sync endpoint, no metadata, no new database.
 - **Nothing lost silently.** Edits to different fields always merge. Two
@@ -34,7 +35,7 @@ works.
 
 ## How it works
 
-![How localstate works: the app edits a local copy; a sync fetches the
+![How stitchback works: the app edits a local copy; a sync fetches the
 server's state, merges base, ours and theirs record by record, and writes
 only the difference back](docs/how-it-works.svg)
 
@@ -64,7 +65,7 @@ sides merge as sets. Any other array is a single value.
 sent, in the shape REST expects. A collection is written entity by entity:
 `POST` added, `PUT` changed, `DELETE` removed. Anything else is one `PUT`,
 carrying `If-Match` when the server sent an `ETag`; a `412` means someone
-wrote first, so localstate fetches, re-merges and retries, up to three
+wrote first, so stitchback fetches, re-merges and retries, up to three
 attempts. Afterwards a fresh `GET` becomes the new `base`, which is also
 how ids the server assigns replace the placeholders used offline.
 
@@ -83,7 +84,7 @@ the truth, so a client does not need commutativity; it needs to know
 and a three-way merge combines the two while naming the only real
 conflicts. HTTP has always named the failure this prevents: the "lost
 update" ([RFC 9110 §13.1.1](https://www.rfc-editor.org/rfc/rfc9110#section-13.1.1)).
-`If-Match` refuses the stale write; localstate goes one step further and
+`If-Match` refuses the stale write; stitchback goes one step further and
 merges it.
 
 ## How it compares
@@ -96,7 +97,7 @@ Checked against each project's documentation on 2026-10-22.
 | Replication protocol, e.g. RxDB | Pull and push handlers and a change stream ([RxDB replication](https://rxdb.info/replication.html)) | Resolved per document by a handler; the default keeps the server's state |
 | Sync engine, e.g. Zero | Its own sync service plus a push endpoint ([Zero mutators](https://zero.rocicorp.dev/docs/mutators)) | Server-authoritative mutators, re-run on the server |
 | CRDT library, e.g. Automerge or Yjs | A sync layer that speaks its format | Converge automatically, at the cost of a CRDT document format |
-| **localstate** | **Nothing new** | **Merged field by field; same-field edits reported** |
+| **stitchback** | **Nothing new** | **Merged field by field; same-field edits reported** |
 
 **Where it fits:** forms, settings, CRUD screens and field-work apps on an
 API you cannot or would rather not change, where edits are occasional and
@@ -159,7 +160,7 @@ Each of these is a design choice worth knowing:
   is not reported.
 - **Collections have a small race window.** Entity writes carry no
   `If-Match`, because a collection listing has no per-entity `ETag`. A
-  write landing between localstate's fetch and its own can be
+  write landing between stitchback's fetch and its own can be
   overwritten. Single resources with an `ETag` are fully guarded.
 - **Creates are not idempotent when the server assigns ids.** If a sync
   fails after a `POST` succeeded, the next sync can post the entity again.
