@@ -7,7 +7,7 @@ import { mkdtemp, copyFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
-    openstore, closestore, load, save
+    openstore, closestore, load, update
 } from "../public/modules/storage.js";
 import { get, edit, sync } from "../public/modules/state.js";
 import { RemoteError } from "../public/modules/fetch.js";
@@ -146,7 +146,8 @@ test("offline, sync fails and the local edit is kept", async () => {
     const posts = (await sync(db, posturl())).data;
     await edit(db, posturl(), [...posts, { id: "9", title: "offline" }]);
     const offline = new URL(`http://localhost:${await freeport()}/posts`);
-    await save(db, { ...(await load(db, posturl().href)), url: offline.href });
+    const doc = await load(db, posturl().href);
+    await update(db, offline.href, () => ({ ...doc, url: offline.href }));
     await assert.rejects(sync(db, offline), TypeError);
     const kept = await load(db, offline.href);
     assert.ok(bytitle(kept.ours, "offline"));
@@ -159,6 +160,53 @@ test("a refused write raises with its status", async () => {
     await assert.rejects(sync(db, missing), (error) => error.status === 404);
     closestore(db);
 });
+
+test("concurrent syncs of one resource post a new entity once", async () => {
+    const db = await replica();
+    const posts = (await sync(db, posturl())).data;
+    await edit(db, posturl(), [...posts, { id: "tmp", title: "only once" }]);
+    await Promise.all([sync(db, posturl()), sync(db, posturl())]);
+    const result = await sync(db, posturl());
+    const copies = result.data.filter((p) => p.title === "only once");
+    assert.equal(copies.length, 1);
+    closestore(db);
+});
+
+test("an edit made while a sync runs is kept and synced next", async () => {
+    const db = await replica();
+    const posts = (await sync(db, posturl())).data;
+    const first = byid(posts, "1");
+    const retitled = posts.map((p) => p === first ? { ...p, title: "T" } : p);
+    await edit(db, posturl(), retitled);
+    const late = retitled.map((p) => p.id === "1" ? { ...p, author: "L" } : p);
+    const result = await duringwrite(() => edit(db, posturl(), late),
+        () => sync(db, posturl()));
+    assert.deepEqual(result.conflicts, []);
+    assert.equal(byid(result.data, "1").author, "L");
+    const server = await (await fetch(posturl())).json();
+    assert.equal(byid(server, "1").title, "T");
+    assert.notEqual(byid(server, "1").author, "L");
+    const next = await sync(db, posturl());
+    assert.equal(byid(next.data, "1").author, "L");
+    closestore(db);
+});
+
+// Runs during() when work sends its first write, before the write leaves.
+async function duringwrite(during, work) {
+    const realfetch = globalThis.fetch;
+    globalThis.fetch = async (url, init) => {
+        if ((init?.method ?? "GET") !== "GET") {
+            globalThis.fetch = realfetch;
+            await during();
+        }
+        return realfetch(url, init);
+    };
+    try {
+        return await work();
+    } finally {
+        globalThis.fetch = realfetch;
+    }
+}
 
 // --- ETag -------------------------------------------------------------------
 

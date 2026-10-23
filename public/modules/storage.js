@@ -26,8 +26,27 @@ function load(db, url) {
     return run(db, "readonly", (store) => store.get(url));
 }
 
-function save(db, doc) {
-    return run(db, "readwrite", (store) => store.put(doc));
+// Reads a record and writes back change(record) in one transaction, so a
+// write made meanwhile is never overwritten. change runs synchronously;
+// if it throws, nothing is written and the promise rejects with its error.
+function update(db, url, change) {
+    return new Promise((resolve, reject) => {
+        const transaction = db.transaction(storename, "readwrite");
+        const store = transaction.objectStore(storename);
+        const request = store.get(url);
+        let doc;
+        request.onsuccess = () => {
+            try {
+                doc = change(request.result);
+                store.put(doc);
+            } catch (error) {
+                reject(error);
+                transaction.abort();
+            }
+        };
+        transaction.oncomplete = () => resolve(doc);
+        transaction.onabort = () => reject(transaction.error);
+    });
 }
 
 function run(db, mode, operation) {
@@ -39,4 +58,4 @@ function run(db, mode, operation) {
     });
 }
 
-export { openstore, closestore, load, save };
+export { openstore, closestore, load, update };

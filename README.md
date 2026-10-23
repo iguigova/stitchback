@@ -31,7 +31,7 @@ server. The server stays exactly as it is: if it speaks `GET`, `POST`,
 - **Nothing lost silently.** Edits to different fields always merge.
   There are two kinds of conflict: two different edits to one field, and
   an edit to something the other side deleted. You are told about both.
-- **Small.** Five dependency-free ES modules, about 400 lines.
+- **Small.** Six dependency-free ES modules, about 500 lines.
 
 ## How it works
 
@@ -150,9 +150,11 @@ const { data, conflicts } = await sync(db, url, resolve);
 - **`edit(db, url, data)`** replaces the local copy. The resource must
   have been fetched once, so there is a `base` to merge against.
 - **`sync(db, url, resolve)`** merges and writes back. It returns the
-  server's state and the conflicts it settled. Offline, it rejects with
-  fetch's `TypeError` and leaves the local copy untouched. A refused
-  request rejects with a `RemoteError` carrying the HTTP status.
+  local copy after the sync and the conflicts it settled. Offline, it
+  rejects with fetch's `TypeError` and leaves the local copy untouched. A
+  refused request rejects with a `RemoteError` carrying the HTTP status.
+  Call it whenever you like: syncs of one resource run one at a time,
+  across tabs too, and an edit made while one runs is kept for the next.
 - **`resolve(conflict)`** receives `{ pointer, base, ours, theirs }`. Each
   side is a record (`{ kind: "value", value }`, `{ kind: "object" }` or
   `{ kind: "list", order }`) or `undefined` for deleted. `resolve`
@@ -172,8 +174,6 @@ Each of these is a design choice worth knowing:
 - **Creates are not idempotent when the server assigns ids.** If a sync
   fails after a `POST` succeeded, the next sync can post the entity again.
 - **Arrays without ids are atomic.** `["a", "b"]` merges as one value.
-- **One sync at a time per replica.** A sync replaces the local copy with
-  the merged result.
 - **The resource must round-trip.** What `GET` returns is what `PUT`
   accepts, so views such as `?_embed=` are read-only for this purpose.
 
@@ -183,12 +183,14 @@ Each of these is a design choice worth knowing:
 npm test
 ```
 
-33 tests run on Node's built-in runner. They cover the flattening, every
+The tests run on Node's built-in runner. They cover the flattening, every
 merge rule, the demo's server, and sync between replicas through a real
-json-server, including offline, deletion, conflicts and a server that
-enforces `ETag`. The run fails below 100% line coverage of
-`public/modules` and `public/demo`. Every push runs them on GitHub
-Actions, and a green `main` publishes `public/` as the live demo.
+json-server, including offline, deletion, conflicts, concurrent syncs,
+edits made during a sync and a server that enforces `ETag`. The run fails
+below 100% line coverage of `public/modules` and `public/demo`. Every
+push runs them on GitHub Actions under Node 22, which has no Web Locks,
+and Node 24, which has them; a green `main` publishes `public/` as the
+live demo.
 
 | Module                      | Responsibility                               |
 |-----------------------------|----------------------------------------------|
@@ -196,6 +198,7 @@ Actions, and a green `main` publishes `public/` as the live demo.
 | `public/modules/merge.js`   | three-way merge of records                   |
 | `public/modules/state.js`   | `get`, `edit`, `sync`, and writing back      |
 | `public/modules/storage.js` | one IndexedDB store of `{ url, base, ours }` |
+| `public/modules/lock.js`    | one sync at a time, through Web Locks        |
 | `public/modules/fetch.js`   | HTTP with `ETag` and typed errors            |
 | `public/demo/server.js`     | the demo's in-page REST server               |
 

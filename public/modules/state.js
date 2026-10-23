@@ -1,6 +1,7 @@
-import { load, save } from "./storage.js";
+import { load, update } from "./storage.js";
 import { iskeyedlist, same } from "./json.js";
 import { merge, keepours } from "./merge.js";
+import { exclusive } from "./lock.js";
 import {
     RemoteError, preconditionfailed, getremote, sendremote
 } from "./fetch.js";
@@ -8,7 +9,8 @@ import {
 // A resource is stored as { url, base, ours }: base is the server state at
 // the last sync, ours is the local copy with any offline edits. A sync
 // merges ours with the server's current state against base, writes the
-// difference back, and makes the result the new base.
+// difference back, and makes the result the new base. Syncs of one
+// resource run one at a time; edits may land while one runs.
 
 const attempts = 3;
 
@@ -23,24 +25,32 @@ async function get(db, url, ondata) {
 }
 
 async function edit(db, url, data) {
-    const doc = await load(db, url.href);
-    if (doc === undefined) throw new Error(`get ${url.href} before editing it`);
-    await save(db, { ...doc, ours: data });
+    await update(db, url.href, (doc) => {
+        if (doc === undefined) {
+            throw new Error(`get ${url.href} before editing it`);
+        }
+        return { ...doc, ours: data };
+    });
 }
 
 // --- syncing ----------------------------------------------------------------
 
-function sync(db, url, resolve = keepours, attempt = 1) {
+function sync(db, url, resolve = keepours) {
+    const name = `stitchback ${db.name} ${url.href}`;
+    return exclusive(name, () => attempt(db, url, resolve, 1));
+}
+
+function attempt(db, url, resolve, count) {
     return synconce(db, url, resolve).catch((error) => {
-        if (!retryable(error, attempt)) throw error;
-        return sync(db, url, resolve, attempt + 1);
+        if (!retryable(error, count)) throw error;
+        return attempt(db, url, resolve, count + 1);
     });
 }
 
-function retryable(error, attempt) {
+function retryable(error, count) {
     return error instanceof RemoteError
         && error.status === preconditionfailed
-        && attempt < attempts;
+        && count < attempts;
 }
 
 async function synconce(db, url, resolve) {
@@ -50,8 +60,14 @@ async function synconce(db, url, resolve) {
     const writes = requests(url, remote, result.value);
     for (const request of writes) await sendremote(request);
     const settled = writes.length > 0 ? await getremote(url) : remote;
-    await save(db, unedited(url, settled.data));
-    return { data: settled.data, conflicts: result.conflicts };
+    const late = [];
+    const saved = await update(db, url.href, (current) => {
+        if (current === undefined) return unedited(url, settled.data);
+        const edits = merge(doc.ours, current.ours, settled.data, resolve);
+        late.push(...edits.conflicts);
+        return { url: url.href, base: settled.data, ours: edits.value };
+    });
+    return { data: saved.ours, conflicts: [...result.conflicts, ...late] };
 }
 
 function unedited(url, data) {
