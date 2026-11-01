@@ -1,39 +1,37 @@
+/* The look is brand.css, the shared stylesheet of every page under
+   iguigova.github.io: white, black and one orange, both themes, Arial. It is
+   imported into a layer, so every rule below wins over it. This file adds only
+   what a demo needs beyond it: the device states, the server pane and the
+   layout of the stage. */
+@import url("https://iguigova.github.io/brand.css") layer(brand);
+
 :root {
-    color-scheme: light dark;
-    --page: #f6f5f1;
-    --card: #ffffff;
-    --ink: #1c1c1e;
-    --muted: #55575d;
-    --line: #d4d2cc;
-    --accent: #0b6e4f;
-    --accent-soft: #e2f3ec;
-    --offline: #8a4b00;
-    --offline-soft: #fbf0e1;
-    --alert: #a3141c;
+    --page: var(--bg);
+    --card: var(--panel);
+    --line: #767676;
+    --accent: var(--link);
+    --offline: var(--muted);
+    --offline-soft: #ececec;
+    --alert: #b91c1c;
     --alert-soft: #fdeaea;
-    --server: #16181d;
-    --server-ink: #e9eaee;
-    --server-muted: #a9adb8;
-    --focus: #1a5fd0;
+    --server: #111111;
+    --server-ink: #f2f2f2;
+    --server-muted: #a3a3a3;
+    --server-line: #333333;
+    --server-ok: #ff9640;
+    --server-bad: #ffa4a8;
+    --focus: var(--link);
     --radius: 0.75rem;
     --gap: 1rem;
 }
 
 @media (prefers-color-scheme: dark) {
     :root {
-        --page: #121316;
-        --card: #1c1d22;
-        --ink: #ececef;
-        --muted: #b3b5bd;
-        --line: #3a3c44;
-        --accent: #5fd3a6;
-        --accent-soft: #13332a;
-        --offline: #f2b46b;
-        --offline-soft: #33261a;
+        --line: #8a8a8a;
+        --offline-soft: #222222;
         --alert: #ff9a9f;
         --alert-soft: #3b1c1f;
-        --server: #08090b;
-        --focus: #7fb0ff;
+        --server: #000000;
     }
 }
 
@@ -45,11 +43,12 @@ body {
     margin: 0;
     background: var(--page);
     color: var(--ink);
-    font: 1rem/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+    font: 1rem/1.5 var(--sans);
 }
 
 a {
-    color: var(--focus);
+    color: var(--link);
+    text-decoration: underline;
 }
 
 :focus-visible {
@@ -72,11 +71,8 @@ h1 {
     line-height: 1.1;
 }
 
-.tagline {
-    margin: 0.25rem 0 1rem;
-    font-size: 1.25rem;
-    font-weight: 600;
-    color: var(--accent);
+.intro header {
+    margin-bottom: 1rem;
 }
 
 .tour {
@@ -123,6 +119,8 @@ h1 {
 }
 
 .device, .server {
+    display: block;
+    margin: 0;
     border-radius: var(--radius);
     padding: 1rem;
     min-width: 0;
@@ -327,6 +325,17 @@ button:active {
 .server {
     background: var(--server);
     color: var(--server-ink);
+    border: 1px solid var(--server-line);
+}
+
+.server code {
+    background: none;
+    padding: 0;
+}
+
+.server > h2 {
+    color: var(--server-ok);
+    border-color: var(--server-line);
 }
 
 .server .lede {
@@ -349,7 +358,7 @@ button:active {
 .server th, .server td {
     text-align: left;
     padding: 0.35rem 0.5rem;
-    border-bottom: 1px solid #2c2f38;
+    border-bottom: 1px solid var(--server-line);
     overflow-wrap: anywhere;
 }
 
@@ -365,7 +374,7 @@ button:active {
     grid-template-columns: 1fr auto auto;
     gap: 0.75rem;
     padding: 0.3rem 0;
-    border-bottom: 1px solid #2c2f38;
+    border-bottom: 1px solid var(--server-line);
     animation: arrive 0.4s ease-out;
 }
 
@@ -374,15 +383,15 @@ button:active {
 }
 
 .log code {
-    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-family: var(--mono);
 }
 
 .log .ok .code {
-    color: #6fe0b4;
+    color: var(--server-ok);
 }
 
 .log .bad .code {
-    color: #ffa4a8;
+    color: var(--server-bad);
 }
 
 .log-empty {
@@ -399,11 +408,11 @@ button:active {
     display: block;
     font-size: 2.5rem;
     line-height: 1.1;
-    color: #6fe0b4;
+    color: var(--server-ok);
 }
 
 @keyframes arrive {
-    from { background: #24413a; }
+    from { background: #3d2a17; }
     to { background: transparent; }
 }
 
