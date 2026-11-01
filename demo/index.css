@@ -1,9 +1,9 @@
-/* The look is brand.css, the shared stylesheet of every page under
-   iguigova.github.io, which carries the look of urgh.weebly.com. It is
-   imported into a layer, so every rule below wins over it. This file adds only
-   what a demo needs beyond it: the device states, the server pane and the
-   layout of the stage. */
-@import url("https://iguigova.github.io/brand.css") layer(brand);
+/* The base style is brand.css at the root of iguigova.github.io: on the live
+   site that is the hub's file, and on the machine ~/src/oceanhue/brand.css, a
+   symlink to it. It is imported into a layer, so every rule below wins over
+   it. This file adds only what a demo needs beyond it: the device states, the
+   server pane and the layout of the stage. */
+@import url("../../brand.css") layer(brand);
 
 :root {
     --page: var(--bg);
