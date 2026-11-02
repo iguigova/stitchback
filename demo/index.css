@@ -127,7 +127,8 @@ h3 {
     font-size: 1rem;
 }
 
-button {
+/* The demo's buttons; brand.css draws the site's theme switch. */
+button:not(.theme-switch) {
     min-height: 44px;
     padding: 0.5rem 1rem;
     border: 1px solid var(--line);
@@ -138,11 +139,11 @@ button {
     cursor: pointer;
 }
 
-button:hover {
+button:not(.theme-switch):hover {
     border-color: var(--ink);
 }
 
-button:active {
+button:not(.theme-switch):active {
     transform: translateY(1px);
 }
 
