@@ -2,19 +2,20 @@
    site that is the hub's file, and on the machine ~/src/oceanhue/brand.css, a
    symlink to it. It is imported into a layer, so every rule below wins over
    it. This file adds only what a demo needs beyond it: the device states, the
-   server pane and the layout of the stage. */
+   server pane and the layout of the stage. A colour that differs by theme is
+   light-dark(light, dark), which follows the theme brand.css sets. */
 @import url("../../brand.css") layer(brand);
 
 :root {
     --page: var(--bg);
     --card: var(--panel);
-    --line: #767676;
+    --line: light-dark(#767676, #8a8a8a);
     --accent: var(--link);
     --offline: var(--muted);
-    --offline-soft: #ececec;
-    --alert: #b91c1c;
-    --alert-soft: #fdeaea;
-    --server: #111111;
+    --offline-soft: light-dark(#ececec, #222222);
+    --alert: light-dark(#b91c1c, #ff9a9f);
+    --alert-soft: light-dark(#fdeaea, #3b1c1f);
+    --server: light-dark(#111111, #000000);
     --server-ink: #f2f2f2;
     --server-muted: #a3a3a3;
     --server-line: #333333;
@@ -23,16 +24,6 @@
     --focus: var(--link);
     --radius: 0.75rem;
     --gap: 1rem;
-}
-
-@media (prefers-color-scheme: dark) {
-    :root {
-        --line: #8a8a8a;
-        --offline-soft: #222222;
-        --alert: #ff9a9f;
-        --alert-soft: #3b1c1f;
-        --server: #000000;
-    }
 }
 
 * {
